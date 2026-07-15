@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>キョーカンじゃん v2 カード試作データ（A4印刷用）</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", sans-serif;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    background: #fff; color: #333;
+  }
+  .sheet {
+    width: 210mm; height: 296mm;
+    page-break-after: always;
+    position: relative;
+    padding: 22mm 10.5mm;
+  }
+  .sheet-label {
+    position: absolute; top: 9mm; left: 10.5mm; right: 10.5mm;
+    font-size: 9pt; color: #999; display: flex; justify-content: space-between;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 63mm);
+    grid-template-rows: repeat(4, 63mm);
+  }
+  .card {
+    width: 63mm; height: 63mm;
+    position: relative;
+    outline: 0.15mm dashed #ccc;   /* 裁ち線 */
+    overflow: hidden;
+  }
+  .card-frame {
+    position: absolute; inset: 2mm;
+    border: 1.1mm solid var(--c);
+    border-radius: 2.5mm;
+  }
+  /* 各辺のコンテンツ。文字の頭は中心向き＝その辺を上にすると向かいの人が正位置で読める */
+  .edge {
+    position: absolute; inset: 0;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .edge.n { transform: rotate(180deg); }
+  .edge.e { transform: rotate(-90deg); }
+  .edge.w { transform: rotate(90deg); }
+  .word {
+    margin-bottom: 4.6mm;
+    font-size: 12.5pt; font-weight: 600; letter-spacing: 0.04em;
+    color: #3a3a3a; white-space: nowrap; line-height: 1;
+  }
+  .emblem-wrap {
+    margin-bottom: 3.2mm; display: flex; flex-direction: column; align-items: center; gap: 0.8mm;
+  }
+  .medallion {
+    width: 10.5mm; height: 10.5mm; border-radius: 50%;
+    background: var(--c); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 6.2mm; font-weight: 700; line-height: 1;
+  }
+  .colorname { font-size: 5.5pt; color: var(--c); font-weight: 700; letter-spacing: 0.2em; }
+  .minilist { font-size: 5pt; color: #aaa; letter-spacing: 0; }
+  .ring {
+    position: absolute; top: 50%; left: 50%; width: 9mm; height: 9mm;
+    border: 0.45mm solid var(--c); border-radius: 50%;
+    opacity: 0.22; transform: translate(-50%, -50%);
+  }
+  /* ジョーカー */
+  .joker .card-frame { border-color: #4a4458; background: #f4f2f7; }
+  .joker-center {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 1.5mm;
+  }
+  .joker-med {
+    width: 20mm; height: 20mm; border-radius: 50%; background: #4a4458; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 3.9mm; font-weight: 700; line-height: 1.25; text-align: center;
+  }
+  .joker-sub { font-size: 6.5pt; color: #4a4458; letter-spacing: 0.15em; }
+  /* きゅうりチップ */
+  .cuke .card-frame { border-color: #5a9e50; background: #f3f8f1; }
+  .cuke-center {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 2mm;
+  }
+  .cuke-body {
+    width: 26mm; height: 8mm; border-radius: 4mm;
+    background: linear-gradient(90deg, #5a9e50, #7cb96f);
+  }
+  .cuke-label { font-size: 10pt; font-weight: 700; color: #478040; letter-spacing: 0.1em; }
+  /* 裏面 */
+  .back .card { outline-color: #999; }
+  /* 裏面は90°回転対称（4方向どこから見ても同一）＝伏せたとき向きがバレない */
+  .back-face {
+    position: absolute; inset: 2mm; border-radius: 2.5mm;
+    background: #3e5c48;
+  }
+  .back-ring {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 16mm; height: 16mm; border: 0.5mm solid rgba(255,255,255,0.5); border-radius: 50%;
+  }
+  .back-ring::after {
+    content: ''; position: absolute; inset: 1.6mm;
+    border: 0.25mm solid rgba(255,255,255,0.35); border-radius: 50%;
+  }
+  .bedge {
+    position: absolute; inset: 0;
+    display: flex; align-items: flex-end; justify-content: center;
+    color: rgba(255,255,255,0.75); font-size: 7pt; font-weight: 600; letter-spacing: 0.25em;
+  }
+  .bedge span { margin-bottom: 4.5mm; }
+  .bedge.b0 { transform: rotate(0deg); }
+  .bedge.b1 { transform: rotate(90deg); }
+  .bedge.b2 { transform: rotate(180deg); }
+  .bedge.b3 { transform: rotate(270deg); }
+  /* 説明ページ */
+  .howto { padding: 20mm 18mm; font-size: 10.5pt; line-height: 1.9; }
+  .howto h1 { font-size: 16pt; margin: 0 0 4mm; }
+  .howto h2 { font-size: 11.5pt; margin: 7mm 0 2mm; }
+  .howto table { border-collapse: collapse; font-size: 9.5pt; }
+  .howto td, .howto th { border: 0.2mm solid #bbb; padding: 1.2mm 3mm; }
+  .howto .note { color: #a33; }
+</style>
+</head>
+<body>
+
+<!-- ===== 説明ページ ===== -->
+<section class="sheet howto">
+  <h1>キョーカンじゃん v2 カード試作データ</h1>
+  <p>正方形63mm・カード136枚（11クラスター×12枚＋ジョーカー4枚）＋きゅうりチップ8枚。<br>
+  ルール本文：Vault <code>07_キョーカンじゃん_ルールv2.md</code></p>
+
+  <h2>印刷のしかた</h2>
+  <p>A4・<strong>倍率100%（「用紙に合わせる」禁止）</strong>・カラー・片面。全14ページ＝この説明＋カード12シート＋裏面1シート。<br>
+  厚紙推奨（0.2〜0.3mm）。普通紙の場合はカードスリーブ＋厚紙台紙が快適。角丸は好みで。</p>
+
+  <h2>カードの読み方（向き＝宣言）</h2>
+  <p>3つの辺に言葉、残る1辺に<strong>クラスター紋章</strong>。文字は「その辺を上（奥）にして置くと、<strong>向かいの人が正位置で読める</strong>」向きに印刷してある。手元では自分側の辺が正位置で読める。<br>
+  紋章を上にして置いたら「まだ秘密」の印。</p>
+
+  <h2>内訳</h2>
+  <table>
+    <tr><th>シート</th><th>内容</th><th>枚数</th></tr>
+    <tr><td>2〜12</td><td>クラスターカード（1シート=1クラスター×12枚）</td><td>132</td></tr>
+    <tr><td>13</td><td>ジョーカー「キョーカン」×4＋きゅうりチップ×8</td><td>4＋8</td></tr>
+    <tr><td>14</td><td>裏面（任意・両面印刷用。位置ズレに注意）</td><td>—</td></tr>
+  </table>
+  <p>きゅうりチップは足りなければコイン等で代用（10本先取×人数分あると安心）。</p>
+
+  <h2 class="note">テストプレイで確認したいこと</h2>
+  <p class="note">① 青②の紋章「緑」と緑色カードの混同が起きないか（起きるなら紋章の改名を検討）<br>
+  ② 12.5ptの言葉が飲食の場の照明で読めるか　③ 向き宣言の操作が直感的か</p>
+</section>
+
+<div id="sheets"></div>
+
+<script>
+const DATA = [
+  { color: '#C1443C', cname: 'あか', groups: [
+    { no: '赤①', kanji: '濃', sub: '厚み系',        words: ['甘い', 'コク', '濃厚'] },
+    { no: '赤②', kanji: '爽', sub: '軽やか系',      words: ['酸っぱい', 'さっぱり', 'フルーティ'] },
+    { no: '赤③', kanji: '滋', sub: '深み系',        words: ['苦い', 'うま味', '香ばしい'] },
+  ]},
+  { color: '#2E5E92', cname: 'あお', groups: [
+    { no: '青①', kanji: '華', sub: '華やか系',      words: ['花の香り', '果実様', '甘い香り'] },
+    { no: '青②', kanji: '緑', sub: '自然系',        words: ['ハーブ', 'グリーンな香り', '木の香り'] },
+    { no: '青③', kanji: '焙', sub: '刺激系',        words: ['スパイシー', 'コーヒー', '香り高い'] },
+  ]},
+  { color: '#B8860B', cname: 'き', groups: [
+    { no: '黄①', kanji: '滑', sub: '滑らか系',      words: ['なめらか', 'まろやか', 'クリーミー'] },
+    { no: '黄②', kanji: '鮮', sub: 'みずみずしい系', words: ['しっとり', 'すっきり', 'みずみずしい'] },
+    { no: '黄③', kanji: '印', sub: '印象的系',      words: ['とろける', 'ぷちぷち', 'シャープ'] },
+  ]},
+  { color: '#3F7D46', cname: 'みどり', groups: [
+    { no: '緑①', kanji: '穏', sub: '親和系',        words: ['バランス', 'きれい', 'やさしい'] },
+    { no: '緑②', kanji: '妙', sub: '個性系',        words: ['余韻', '奥深い', '不思議'] },
+  ]},
+];
+
+function clusterCard(color, cname, g) {
+  return `<div class="card" style="--c:${color}">
+    <div class="card-frame"></div>
+    <div class="ring"></div>
+    <div class="edge n"><span class="word">${g.words[0]}</span></div>
+    <div class="edge e"><span class="word">${g.words[1]}</span></div>
+    <div class="edge w"><span class="word">${g.words[2]}</span></div>
+    <div class="edge s"><span class="emblem-wrap">
+      <span class="medallion">${g.kanji}</span><span class="colorname">${cname}</span>
+      <span class="minilist">${g.words.join('・')}</span>
+    </span></div>
+  </div>`;
+}
+
+let html = '';
+let pageNo = 2;
+for (const c of DATA) {
+  for (const g of c.groups) {
+    html += `<section class="sheet">
+      <div class="sheet-label"><span>キョーカンじゃんv2｜${g.no}「${g.kanji}」${g.sub}（${g.words.join('・')}）×12</span><span>p.${pageNo} / 63mm角</span></div>
+      <div class="grid">${clusterCard(c.color, c.cname, g).repeat(12)}</div>
+    </section>`;
+    pageNo++;
+  }
+}
+
+const joker = `<div class="card joker">
+  <div class="card-frame"></div>
+  <div class="joker-center"><div class="joker-med">キョー<br>カン</div><div class="joker-sub">なんにでも なれる</div></div>
+</div>`;
+const cuke = `<div class="card cuke">
+  <div class="card-frame"></div>
+  <div class="cuke-center"><div class="cuke-body"></div><div class="cuke-label">きゅうり 1本</div></div>
+</div>`;
+html += `<section class="sheet">
+  <div class="sheet-label"><span>キョーカンじゃんv2｜ジョーカー×4＋きゅうりチップ×8</span><span>p.${pageNo} / 63mm角</span></div>
+  <div class="grid">${joker.repeat(4)}${cuke.repeat(8)}</div>
+</section>`;
+pageNo++;
+
+const back = `<div class="card">
+  <div class="back-face">
+    <div class="back-ring"></div>
+    <div class="bedge b0"><span>キョーカンじゃん</span></div>
+    <div class="bedge b1"><span>キョーカンじゃん</span></div>
+    <div class="bedge b2"><span>キョーカンじゃん</span></div>
+    <div class="bedge b3"><span>キョーカンじゃん</span></div>
+  </div>
+</div>`;
+html += `<section class="sheet back">
+  <div class="sheet-label"><span>キョーカンじゃんv2｜裏面（任意・両面印刷用）</span><span>p.${pageNo}</span></div>
+  <div class="grid">${back.repeat(12)}</div>
+</section>`;
+
+document.getElementById('sheets').innerHTML = html;
+</script>
+</body>
+</html>

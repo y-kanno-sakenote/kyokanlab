@@ -1,0 +1,170 @@
+では Step2｜官能評価用語論文を「網羅的に拾う検索設計」 に進みます。
+ここは後戻りできない重要工程なので、学術レビュー耐性のある設計として固めます。
+
+⸻
+
+Step2｜網羅的検索の設計（食品・官能評価用語）
+
+Step2のゴール（明確化）
+	•	「恣意的に選んでいない」ことを説明できる
+	•	どの食品ジャンルにも横展開できる
+	•	NotebookLM／CSV化／辞書化にそのまま使える
+
+👉
+検索式・分類軸・除外基準まで含めて“方法論”として完成させます。
+
+⸻
+
+2-1｜「網羅的」と言える条件（学術的定義）
+
+官能評価分野で「網羅的に文献を集めた」と言うためには、最低限以下を満たす必要があります。
+	1.	複数の同義語を含む検索語群
+	2.	レビュー論文＋一次研究論文の両方を含む
+	3.	食品カテゴリ横断
+	4.	用語“そのもの”を扱っている論文に限定
+
+この条件を満たす設計にします。
+
+⸻
+
+2-2｜検索軸①：用語の言い換え（最重要）
+
+官能評価用語は、論文ごとに表現が揺れます。
+これを潰すのが網羅性の鍵です。
+
+A. 「官能評価用語」を指す主要語群
+
+必ず OR で束ねる語：
+
+"sensory lexicon"
+"sensory vocabulary"
+"sensory descriptor"
+"sensory descriptors"
+"descriptive terms"
+
+B. ホイール系（語彙整理の典型）
+
+"sensory wheel"
+"flavor wheel"
+"aroma wheel"
+
+C. 手法名（lexicon論文が紛れ込む）
+
+"descriptive analysis"
+"quantitative descriptive analysis"
+QDA
+"sensory profiling"
+
+👉 A＋B＋C を束ねないと“抜け”が出ます
+
+⸻
+
+2-3｜検索軸②：食品限定フィルタ
+
+必ず食品に限定します。
+
+food OR beverage OR dairy OR cheese OR coffee OR tea OR beer OR wine OR fermented
+
+※ 清酒は後で別枠（日本語＋J-STAGE）で扱うのが合理的
+
+⸻
+
+2-4｜検索軸③：レビュー論文（必須）
+
+レビューは「その分野で何が出揃っているか」を保証します。
+
+review OR overview
+
+👉 レビュー論文が起点 → 引用文献を芋づる式に拾う
+
+⸻
+
+2-5｜完成形：基本検索式（英語）
+
+これが「基幹クエリ」です。
+
+(
+  "sensory lexicon"
+  OR "sensory vocabulary"
+  OR "sensory descriptor*"
+  OR "sensory wheel"
+  OR "flavor wheel"
+)
+AND
+(
+  food OR beverage OR dairy OR cheese OR coffee OR tea OR beer OR fermented
+)
+AND
+(
+  "descriptive analysis"
+  OR QDA
+  OR "sensory profiling"
+)
+
+🔹 レビュー用（追加）：
+
+AND (review OR overview)
+
+
+⸻
+
+2-6｜日本語論文用（J-STAGE等）
+
+日本語は揺れが少ないのでシンプルでOK。
+
+官能評価 用語
+官能評価 語彙
+官能評価 記述語
+食感 用語 整理
+
+👉
+日本語論文は「食感」「風味表現」に強い
+（カード設計に超有用）
+
+⸻
+
+2-7｜除外基準（これ重要）
+
+次は“拾わない論文”を明確にします。
+
+❌ 除外
+	•	単なる嗜好評価（liking / preference）のみ
+	•	化学分析のみ（GC-MSだけ等）
+	•	官能評価はしているが用語リストが提示されていない
+	•	用語が自由記述のみで整理されていない
+
+✅ 採用
+	•	用語リスト／表／付録がある
+	•	descriptor selection / lexicon development が明示されている
+	•	sensory wheel / category map を含む
+
+⸻
+
+2-8｜この検索設計が「共感じゃん／共感ラボ」に効く理由
+
+この設計で集まる論文はすべて、
+	•	用語を
+	•	どう集め
+	•	どう整理し
+	•	どう定義し
+	•	どう共有したか
+を説明している
+
+👉
+＝ ゲーム内でやっている行為そのもの
+
+⸻
+
+次の Step3（予告）
+
+次は、ここで拾った論文を
+
+Step3｜論文メタ情報CSVを作る
+	•	年／食品カテゴリ／lexicon有無
+	•	用語数／定義有無／参照見本有無
+	•	DOI／URL
+
+👉
+**「このCSVが、共感ラボ語彙辞書の母体」**になります。
+
+「次へ」で Step3 に進みます。

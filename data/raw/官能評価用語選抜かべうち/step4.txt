@@ -1,0 +1,121 @@
+では Step4｜lexicon論文から「実際の官能評価用語（descriptor）」を抽出し、辞書化 に進みます。
+ここはゲーム実装に直結する工程なので、「学術→カード」へ落とすための規格化ルールを先に確定し、そのうえで代表食品からの抽出例を示します。
+
+⸻
+
+Step4｜官能評価用語の抽出・辞書化（食品）
+
+Step4のゴール
+	•	論文ごとに散在する用語を、共通フォーマットで統合
+	•	**一次語彙（カード候補）**として使える状態にする
+	•	出典（論文／標準）を必ず紐づける（学術的説明が可能）
+
+⸻
+
+4-1｜用語抽出の“規格”（ここが最重要）
+
+以下の列で用語辞書CSVを作ります（NotebookLM・Streamlit・カード印刷にそのまま使える）。
+
+必須カラム
+	•	descriptor_en（原語）
+	•	descriptor_ja（日本語）
+	•	attribute_level（上位属性：aroma / taste / flavor / texture / aftertaste / appearance）
+	•	category（例：fruity / nutty / sweet など）
+	•	definition（論文記載 or 要約）
+	•	reference_standard（参照見本：例「vanilla solution」等）
+	•	food_domain（coffee / cheese / malt / cross-food など）
+	•	source_title
+	•	source_year
+	•	source_type（Lexicon paper / Wheel / Standard）
+	•	confidence（High＝定義＋参照あり / Mid / Low）
+
+👉 ISO 11035 の「定義＋参照で意味を固定する」思想を反映しています。
+
+⸻
+
+4-2｜抽出ルール（恣意性を排除）
+
+採用（カード化OK）
+	•	lexicon / descriptor list / wheel に明示的に掲載
+	•	定義 or 使用説明がある
+	•	パネル合意で選抜された語
+
+保留（後で整理）
+	•	自由記述由来だが頻出
+	•	定義が弱い（レビューで補強）
+
+除外
+	•	評価語ではなく感情語のみ（like, pleasant だけ等）
+	•	サンプル固有名（商品名）
+
+⸻
+
+4-3｜抽出例①：コーヒー（代表・国際標準）
+
+出典
+	•	World Coffee Research Sensory Lexicon
+	•	Chambers et al. “Living Lexicon” 論文
+
+抽出例（抜粋）
+
+descriptor_en	descriptor_ja	attribute_level	category	definition（要約）	reference_standard	confidence
+Fruity	果実様	aroma/flavor	fruity	果物を想起させる香味	エステル標準液	High
+Citrus	柑橘様	aroma/flavor	fruity	レモン・オレンジ様	クエン酸溶液	High
+Nutty	ナッツ様	aroma/flavor	nutty	ローストナッツ様	ピーナッツ	High
+Bitter	苦味	taste	basic taste	カフェイン様の苦味	カフェイン溶液	High
+Astringent	渋味	mouthfeel	tactile	口腔収斂感	明礬溶液	High
+
+👉 High が多い＝ゲームの“基準カード”に最適
+
+⸻
+
+4-4｜抽出例②：チーズ（乳製品）
+
+出典
+	•	Rétiveau et al., 2005（French cheese lexicon）
+
+descriptor_en	descriptor_ja	attribute_level	category	definition	food_domain
+Milky	乳様	aroma/flavor	dairy	牛乳様の香味	cheese
+Buttery	バター様	aroma/flavor	dairy	バター・脂肪感	cheese
+Sulfurous	硫黄様	aroma	sulfur	卵・硫黄系	cheese
+Acidic	酸味	taste	basic taste	乳酸由来の酸	cheese
+
+
+⸻
+
+4-5｜抽出例③：日本語対応（日本人知覚）
+
+出典
+	•	Hatakeyama et al., 2023（ミルクコーヒー、日本人知覚）
+
+ポイント
+	•	「コク」「まろやか」「後キレ」など
+→ 日本酒・発酵食品カードに転用可能
+	•	英語直訳では拾えない語彙が出る
+
+⸻
+
+4-6｜ここまでで得られる“確実な一次語彙群”
+	•	香り系：fruity / floral / nutty / sulfurous / roasted …
+	•	味系：sweet / sour / bitter / salty / umami
+	•	口当たり：astringent / oily / creamy / viscous
+	•	後味：lingering / clean / harsh
+
+👉
+食品横断で再利用できる“コア語彙”が見える
+
+⸻
+
+次の Step5（予告）
+
+次は、ここで抽出した語彙を
+
+Step5｜共感じゃん／共感ラボ用「一次語彙カード」に再編
+	•	ISO属性別に整理
+	•	語彙数を“ゲームとして成立する枚数”に削減
+	•	初心者／上級ルールで使い分け
+
+👉
+「なぜこのカードなのか」を学術的に説明できる最終形にします。
+
+「次へ」で Step5 に進みます。

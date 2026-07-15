@@ -1,0 +1,48 @@
+Step3 に進みます。ここでは 「論文メタ情報CSV（母艦）」を作って、網羅検索→抽出→ゲーム語彙化の土台を固めます。
+
+⸻
+
+Step3｜CSV設計（共感じゃん／共感ラボ用）
+
+推奨カラム（このまま運用できます）
+	•	genre_food（食品カテゴリ）
+	•	year
+	•	title
+	•	authors
+	•	journal_or_source
+	•	type（Review / Lexicon paper / Wheel / Standard / Resource など）
+	•	lexicon_terms_count（分かる範囲で）
+	•	has_definitions（Yes/No/不明）
+	•	has_reference_standards（参照見本があるか：Yes/No/不明）
+	•	doi
+	•	url
+	•	notes（ゲーム設計に効くメモ：用語数、開発手順、特徴など）
+
+⸻
+
+まず「種CSV」を作成しました（初期収集10件）
+
+食品領域で lexicon / wheel / 用語標準化に直結する代表的な一次文献・レビュー・リソースを入れてあります（ここから網羅性を広げていきます）。
+
+Download: kyokan_sensory_lexicon_papers_seed.csv
+
+この種CSVに含めた根拠ソース例：
+	•	lexiconの意義と開発手順の整理（レビュー）  
+	•	brewed coffee の “living lexicon” 論文  
+	•	World Coffee Research の Sensory Lexicon（PDF＋公式ページ）  
+	•	チーズ lexicon 代表論文（フランスチーズ）  
+	•	brewing malt の lexicon＋sensory wheel 論文  
+	•	日本語寄り（ミルクコーヒー lexicon：J-STAGE PDF）  
+
+⸻
+
+次の Step4（次へ進める内容）
+
+Step4 では、このCSVの各論文から **「実際の用語（descriptor）リスト」**を抜き出し、
+	•	用語（原語/日本語訳）
+	•	定義
+	•	参照見本（あれば）
+	•	上位カテゴリ（香り/味/食感/後味/外観など）
+を 用語単位の辞書として整形します。
+
+「次へ」で Step4 に行きます。
