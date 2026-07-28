@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>キョーカンじゃん</title>
+<style>
+  :root { --bg:#f7f5f0; --ink:#3a3a3a; --sub:#999; --accent:#3e5c48; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--ink); min-height:100vh;
+    font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif; }
+  #app { max-width:480px; margin:0 auto; padding:12px 12px 40px; }
+  h1 { font-size:1.45rem; text-align:center; margin:20px 0 4px; letter-spacing:.1em; }
+  h2 { font-size:1rem; margin:14px 0 6px; }
+  .tagline { text-align:center; color:var(--sub); font-size:.78rem; margin-bottom:22px; }
+  button { display:block; width:100%; padding:13px; margin:8px 0; font-size:.98rem; font-weight:600;
+    font-family:inherit; border:none; border-radius:11px; background:var(--accent); color:#fff; cursor:pointer; }
+  button.sub { background:#fff; color:var(--ink); border:1.5px solid #ccc; }
+  button.warn { background:#b4562f; }
+  button:disabled { opacity:.4; }
+  input { width:100%; padding:11px; font-size:1rem; font-family:inherit; border:1.5px solid #ccc;
+    border-radius:10px; margin:5px 0; }
+  .note { font-size:.76rem; color:var(--sub); line-height:1.7; }
+  .center { text-align:center; }
+  .roomcode { font-size:2.1rem; letter-spacing:.3em; text-align:center; font-weight:700; margin:10px 0; }
+  .bar { display:flex; justify-content:space-between; align-items:center; font-size:.75rem;
+    color:var(--sub); margin-bottom:8px; }
+  .mycolor { font-weight:700; }
+
+  /* 手牌：flexで理牌。色の境目に区切り／同クラスタは詰める／完成3枚に下線 */
+  .hand { display:flex; flex-wrap:wrap; gap:9px 6px; margin:8px 0; }
+  .hand > div { width:62px; position:relative; }
+  .hand > div.sep { margin-left:11px; }
+  .hand > div.sep::before { content:''; position:absolute; left:-7px; top:14%; bottom:14%;
+    width:1px; background:#e2ded4; }
+  .hand > div.tight { margin-left:-3px; }
+  /* 同じカードは重ねる（トランプを少しずらして持つ感じ） */
+  .hand > div.dup { margin-left:-44px; }
+  .hand > div.dup .card { box-shadow:-3px 0 5px rgba(0,0,0,.13); }
+  .hand > div.picked { z-index:5; }
+  .hand { touch-action:none; }                    /* ドラッグ並べ替えのため */
+  .hand > div.dragging { z-index:20; opacity:.92; }
+  .hand > div.dragging .card { box-shadow:0 6px 14px rgba(0,0,0,.25); }
+  .sortbtn { display:inline-block; width:auto; margin:0; padding:4px 10px; font-size:.68rem;
+    background:#fff; color:#999; border:1.5px solid #e2ded4; border-radius:99px; }
+  .handbar { display:flex; align-items:center; justify-content:space-between; margin:10px 0 2px; }
+  .tiny { font-size:.72rem; color:#999; }
+  /* 場のようす（畳んでおく） */
+  .fieldbox { margin:12px 0 4px; border:1.5px solid #e6e2d8; border-radius:11px; background:#fdfcf9; }
+  .fieldbox > summary { cursor:pointer; list-style:none; padding:9px 13px; font-size:.78rem; color:#8a8578; }
+  .fieldbox > summary::-webkit-details-marker { display:none; }
+  .fieldbox > summary::before { content:'▸ '; }
+  .fieldbox[open] > summary::before { content:'▾ '; }
+  .fieldbox .field { margin:0 9px 9px; }
+  /* 3枠（自分で役を組む）：1枠＝1行、中身はカードのまま */
+  .mslots { display:flex; flex-direction:column; gap:6px; margin:10px 0 6px; }
+  .mslot { display:flex; align-items:center; gap:8px; min-height:68px; padding:5px 9px;
+    border:2px dashed #d8d5cc; border-radius:11px; background:#faf9f6; cursor:pointer;
+    transition:transform .12s, background .12s; }
+  .mslot.part { border-style:solid; border-color:#c9c5ba; background:#fff; }
+  .mslot.ok { border-style:solid; border-color:var(--c); background:#fff; }
+  .mslot.bad { border-color:#c1443c; background:#fff4f2; }
+  .mslot.fixed { background:#eef3ee; border-style:double; border-width:3px; cursor:default; }
+  .mslot.hover { border-color:#3e5c48; background:#eef3ee; transform:scale(1.015); }
+  .mslot .mcards { display:flex; gap:4px; align-items:center; }
+  .mslot .mcard { width:56px; display:block; touch-action:none; cursor:grab; }
+  .mslot .mcard .ws { font-size:.44rem; line-height:1.35; }
+  .mslot .mcard .sym svg { width:21px; height:21px; }
+  .mslot .mlabel { margin-left:auto; font-size:.72rem; color:#a8a8a8; text-align:right; line-height:1.35; }
+  .mslot .msub { font-size:.58rem; color:#9aa89a; }
+  .mslot.ok .mlabel { color:var(--c); font-weight:700; }
+  .mslot.bad .mlabel { color:#c1443c; }
+  .mslot .mempty { color:#c0bcb2; font-size:.74rem; }
+  .mslot.shake { animation:shake .35s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+  .hand > div.done::after { content:''; position:absolute; left:4px; right:4px; bottom:-5px;
+    height:3px; border-radius:2px; background:var(--c); }
+  .handlabel { font-size:.7rem; color:#a9a9a9; margin:12px 0 2px; border-top:1px dashed #ddd; padding-top:8px; }
+  .handgroups { display:flex; flex-wrap:wrap; gap:7px; margin:8px 0; }
+  .rolegroup { display:flex; gap:2px; border:2.5px solid var(--c); border-radius:9px; padding:3px; background:#fff; position:relative; }
+  .rolegroup.locked { background:#eef3ee; border-style:double; border-width:3px; }
+  .locktag { position:absolute; top:-8px; left:50%; transform:translateX(-50%); font-size:.55rem;
+    background:#3e5c48; color:#fff; border-radius:99px; padding:1px 7px; white-space:nowrap; }
+  .rolegroup > div { width:44px; }
+  .grouplabel { font-size:.7rem; color:#3e5c48; font-weight:600; margin:8px 0 2px; }
+  .drewbox { display:flex; align-items:center; gap:8px; background:#fff8e0; border:1.5px solid #ecd27a;
+    border-radius:10px; padding:6px 10px; margin:6px 0; font-size:.85rem; color:#8a6d00; font-weight:600; }
+  .drewbox .card { width:50px; flex:0 0 auto; }
+  .drew .card { box-shadow:0 0 0 3px #f5a623; animation:drewpop .6s ease; }
+  @keyframes drewpop { 0%{transform:scale(1.3);} 60%{transform:scale(.93);} 100%{transform:scale(1);} }
+  .pchip { display:inline-flex; align-items:center; justify-content:center;
+    margin-left:4px; vertical-align:middle; }
+  .pchip.joker { width:18px; height:18px; border-radius:50%; background:#4a4458; color:#fff;
+    font-size:10px; font-weight:700; }
+  .inlsym { display:inline-flex; vertical-align:-3px; margin-right:3px; }
+  .anchortag { display:inline-flex; align-items:center; gap:2px; }
+  .jchip { display:inline-flex; width:17px; height:17px; border-radius:50%; background:#4a4458;
+    color:#fff; font-size:9px; font-weight:700; align-items:center; justify-content:center; }
+  .set .k { display:flex; align-items:center; justify-content:center; gap:1px; }
+  .slot .slotk.small { display:flex; gap:1px; align-items:center; justify-content:center; }
+  .hand > div.off { opacity:.35; }
+  .baserow { display:flex; align-items:center; gap:8px; margin:6px 0 8px; }
+  .baserow.mine { background:#fff; border:1.5px solid #e0ddd4; border-radius:11px; padding:6px 10px; }
+  .cukecount { margin-left:auto; font-size:.9rem; }
+  .basetag { font-size:.62rem; background:#3e5c48; color:#fff; border-radius:99px; padding:2px 8px; }
+  .basecard { display:flex; align-items:center; gap:6px; border:2px solid var(--c);
+    border-radius:9px; padding:4px 10px; background:#fff; }
+  .basecard .bw { font-size:.9rem; font-weight:700; color:var(--c); }
+  .fieldttl { font-size:.72rem; color:#999; margin-bottom:5px; }
+  .selftag { font-size:.58rem; background:#e6e2d8; color:#7a7466; border-radius:99px;
+    padding:1px 6px; margin-left:5px; vertical-align:middle; }
+  .lockchips { display:inline-flex; gap:5px; margin-left:5px; vertical-align:middle; }
+  .lockchip { display:inline-flex; gap:1px; align-items:center; border:1px solid #d8d5cc;
+    border-radius:6px; padding:1px 3px; background:#fff; }
+  .jchip.small { width:13px; height:13px; font-size:7px; }
+  .drow { display:flex; align-items:center; gap:8px; padding:2px 0; }
+  .dname { color:#777; min-width:56px; font-size:.82rem; }
+  .card { aspect-ratio:1; border:2px solid var(--c); border-radius:9px; background:#fff;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; position:relative; }
+  .card.off { opacity:.32; }
+  .card.sel { outline:3px solid var(--ink); outline-offset:2px; }
+  .card .sym { display:flex; align-items:center; justify-content:center; height:26px; }
+  .card .km { width:23px; height:23px; border-radius:50%; background:var(--c); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; }
+  .card .cn { font-size:.46rem; color:var(--c); font-weight:700; }
+  .card .ws { font-size:.5rem; color:#666; line-height:1.45; text-align:center;
+    letter-spacing:-.02em; margin-top:2px; }
+  .card.joker { border-color:#4a4458; }
+  .card.joker .km { background:#4a4458; font-size:9px; }
+
+  .sets { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
+  .set { border:2px solid var(--c); border-radius:9px; background:#fff; padding:5px 9px; text-align:center; }
+  .set .k { display:flex; align-items:center; justify-content:center; }
+  .set .w { font-size:.7rem; }
+  .set .j { font-size:.55rem; color:#4a4458; }
+  .slots { display:flex; gap:8px; margin:12px 0 4px; }
+  .slot { flex:1; aspect-ratio:1; border-radius:11px; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; position:relative; }
+  .slot.done { border:2.5px solid var(--c); background:#fff; }
+  .slot.empty { border:2px dashed #d5d5d5; background:#faf9f6; }
+  .slot .slotk { display:flex; align-items:center; justify-content:center; font-size:2rem; font-weight:700; line-height:1; }
+  .slot.done .slotk { color:var(--c); }
+  .slot.empty .slotk { color:#cfcfcf; }
+  .slot .slotw { font-size:.55rem; color:#aaa; margin-top:2px; }
+  .slottag { position:absolute; top:5px; font-size:.58rem; background:#3e5c48; color:#fff;
+    border-radius:99px; padding:1px 8px; }
+  .hint { text-align:center; font-size:.9rem; color:#888; margin:4px 0 10px; }
+  .hint.ready { color:#c1443c; font-weight:700; font-size:1.05rem; }
+  button.big { font-size:1.15rem; padding:16px; background:#c1443c; }
+
+  .field { background:#fff; border:1.5px solid #e0ddd4; border-radius:11px; padding:9px 12px; margin:8px 0; }
+  .field .row { display:flex; justify-content:space-between; font-size:.8rem; padding:3px 0; }
+  .field .row.now { font-weight:700; color:var(--accent); }
+  .discard { display:flex; align-items:center; gap:8px; font-size:.85rem; }
+
+  .word-btn { background:#fff; color:var(--ink); border:2px solid var(--c); font-size:1rem; padding:12px; }
+  .word-btn.sel { background:var(--c); color:#fff; }
+
+  .seno-flash { height:65vh; display:flex; align-items:center; justify-content:center;
+    font-size:3rem; font-weight:700; letter-spacing:.15em; animation:pop .75s ease-out; }
+  @keyframes pop { 0%{transform:scale(.4);opacity:0} 40%{transform:scale(1.15);opacity:1} 100%{transform:scale(1)} }
+  .kyokan-alert { border:2.5px solid #b4562f; border-radius:12px; padding:10px; margin:8px 0 10px; background:#fff6f2; }
+  .kbanner { display:flex; align-items:center; gap:11px; margin-bottom:6px; }
+  .kbanner .kcard { width:56px; flex:0 0 auto; }
+  .kbanner .ktext { font-size:.9rem; color:#8a3a18; }
+  .kyokan-alert button { margin:5px 0 0; padding:11px; }
+  .kyokan-wait { border:1.5px dashed #ddd6cc; border-radius:10px; padding:7px 12px; margin:8px 0;
+    font-size:.8rem; color:#a08b78; background:#fdfbf7; text-align:center; }
+  .notice { background:#eef3ee; border-left:4px solid #3e5c48; border-radius:7px; padding:7px 11px;
+    margin:8px 0; font-size:.82rem; color:#33503c; font-weight:600; }
+  .timer { font-size:.8rem; color:#b4562f; font-weight:700; }
+
+  .reveal { display:grid; grid-template-columns:1fr; gap:10px; margin:10px 0; }
+  .pcard { background:#fff; border:1.5px solid #e0ddd4; border-radius:11px; padding:9px 12px; }
+  .pcard .who { font-size:.8rem; color:var(--sub); display:flex; justify-content:space-between; }
+  .totals { background:#fff; border-radius:11px; padding:6px 14px; margin:10px 0; border:1.5px solid #e0ddd4; }
+  .totals div { display:flex; justify-content:space-between; padding:6px 0; font-size:.95rem; }
+  .waitlist { font-size:.9rem; line-height:1.9; }
+  .ok { color:var(--accent); font-weight:700; }
+  .navbtn { position:fixed; top:8px; right:8px; width:auto; margin:0; padding:6px 13px;
+    font-size:.7rem; font-weight:600; background:#fff; color:#888; border:1.5px solid #ddd;
+    border-radius:999px; z-index:50; }
+</style>
+</head>
+<body>
+<button id="navBtn" class="navbtn">ゲームをえらぶ</button>
+<div id="app"></div>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+'use strict';
+/* ========== カードデータ（v3・じゃんカードと共通） ========== */
+/* 透視カード（ゼナー）5記号：まる＝ゆたか／なみ＝すずやか／ほし＝際立つ／十字・しかく＝みどり専用 */
+const SYMRAW = {
+  maru:  `<circle cx="12" cy="12" r="7.2"/>`,
+  nami:  `<path d="M6 4.2c-2.6 4 2.6 7.6 0 11.6"/><path d="M12 3.4c-2.6 4.4 2.6 8.4 0 12.8"/><path d="M18 4.2c-2.6 4 2.6 7.6 0 11.6"/>`,
+  hoshi: `<path d="M12 3.2l2.66 6.1 6.64.53-5.04 4.36 1.53 6.48L12 17.5l-5.79 3.17 1.53-6.48L2.7 9.83l6.64-.53z"/>`,
+  juji:  `<path d="M12 4v16M4 12h16"/>`,
+  shi:   `<rect x="5.2" y="5.2" width="13.6" height="13.6" rx="1.2"/>`,
+};
+const symSvg = (key, px, color, w) => `<svg viewBox="0 0 24 24" width="${px}" height="${px}" fill="none"
+  stroke="${color}" stroke-width="${w||2.1}" stroke-linecap="round" stroke-linejoin="round">${SYMRAW[key]}</svg>`;
+const clSym  = (i, px, w, color) => symSvg(CL[i].s, px, color || COL[CL[i].col].hex, w);
+const clName = i => `${COL[CL[i].col].ja}の${CL[i].n}`;
+
+const CL = [
+  {s:'maru', n:'まる',col:'R',words:['甘い','コク','濃厚']},
+  {s:'nami', n:'なみ',col:'R',words:['酸っぱい','さっぱり','フルーティ']},
+  {s:'hoshi',n:'ほし',col:'R',words:['苦い','うま味','香ばしい']},
+  {s:'maru', n:'まる',col:'B',words:['花の香り','果実様','甘い香り']},
+  {s:'nami', n:'なみ',col:'B',words:['ハーブ','グリーンな香り','木の香り']},
+  {s:'hoshi',n:'ほし',col:'B',words:['スパイシー','コーヒー','香り高い']},
+  {s:'maru', n:'まる',col:'Y',words:['なめらか','まろやか','クリーミー']},
+  {s:'nami', n:'なみ',col:'Y',words:['しっとり','すっきり','みずみずしい']},
+  {s:'hoshi',n:'ほし',col:'Y',words:['とろける','ぷちぷち','シャープ']},
+  {s:'juji', n:'十字',col:'G',words:['バランス','きれい','やさしい']},
+  {s:'shi',  n:'しかく',col:'G',words:['余韻','奥深い','不思議']},
+];
+const COL = { R:{ja:'あか',attr:'味・印象',hex:'#C1443C'}, B:{ja:'あお',attr:'香り',hex:'#2E5E92'},
+              Y:{ja:'き',attr:'口あたり',hex:'#B8860B'}, G:{ja:'みどり',attr:'全体印象',hex:'#3F7D46'} };
+const JOKER = 99, HAND = 9, TARGET_SETS = 3, GOAL_CUKES = 10, KYOKAN_SEC = 6;
+const $ = s => document.querySelector(s);
+const app = $('#app');
+const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function buildDeck(){
+  const d=[]; CL.forEach((_,i)=>{ for(let n=0;n<12;n++) d.push(i); });
+  for(let n=0;n<4;n++) d.push(JOKER);
+  for(let i=d.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; }
+  return d;
+}
+/* ===== v5：ベースが引く十字の中で役をつくる =====
+   色そろい＝ベースと同じ色3枚／記号そろい＝ベースと同じ記号3枚
+   まんなか＝ベースと同じカード3枚（色も記号も）／みどり＝同じみどり3枚（字牌・誰でも可） */
+const isGreen = c => c!==JOKER && CL[c].col==='G';
+
+function classifyHand(hand, base){
+  const bc=CL[base].col, bs=CL[base].s;
+  const ix={x:[],a:[],s:[],j:[],out:[],g:{}};
+  hand.forEach((c,i)=>{
+    if(c===JOKER){ ix.j.push(i); return; }
+    if(isGreen(c)){ (ix.g[c]=ix.g[c]||[]).push(i); return; }
+    const ic=CL[c].col===bc, is=CL[c].s===bs;
+    if(ic&&is) ix.x.push(i); else if(ic) ix.a.push(i); else if(is) ix.s.push(i); else ix.out.push(i);
+  });
+  return ix;
+}
+function candSets(st){
+  const out=[];
+  if(st.x>=1){ const k=Math.min(3,st.x), j=3-k; if(j<=st.j) out.push({t:'まんなか',use:{x:k,j}}); }
+  Object.keys(st.g).forEach(key=>{
+    const n=st.g[key]; if(n>=1){ const k=Math.min(3,n), j=3-k; if(j<=st.j) out.push({t:'みどり',cl:+key,use:{gn:k,j}}); }
+  });
+  { const a=Math.min(3,st.a), x=Math.min(3-a,st.x), j=3-a-x; if(j<=st.j&&a+x>=1) out.push({t:'色そろい',use:{a,x,j}}); }
+  { const s=Math.min(3,st.s), x=Math.min(3-s,st.x), j=3-s-x; if(j<=st.j&&s+x>=1) out.push({t:'記号そろい',use:{s,x,j}}); }
+  return out;
+}
+function applyUse(st,c){
+  const n={x:st.x,a:st.a,s:st.s,j:st.j,g:Object.assign({},st.g)}, u=c.use;
+  if(u.x)n.x-=u.x; if(u.a)n.a-=u.a; if(u.s)n.s-=u.s; if(u.j)n.j-=u.j;
+  if(c.t==='みどり') n.g[c.cl]-=u.gn;
+  return n;
+}
+function planSets(st, depth){
+  if(depth===0) return [];
+  let best=[];
+  candSets(st).forEach(c=>{
+    const rest=planSets(applyUse(st,c), depth-1);
+    if(1+rest.length>best.length) best=[c].concat(rest);
+  });
+  return best;
+}
+/* returns {sets:[{type,cluster,idxs,cards}], used:Set(index)} */
+function analyze(hand, base){
+  if(base==null||base===JOKER) return {sets:[], used:new Set()};
+  const ix=classifyHand(hand, base);
+  const st={x:ix.x.length,a:ix.a.length,s:ix.s.length,j:ix.j.length,g:{}};
+  Object.keys(ix.g).forEach(k=>st.g[k]=ix.g[k].length);
+  const plan=planSets(st, TARGET_SETS);
+  const pool={x:ix.x.slice(),a:ix.a.slice(),s:ix.s.slice(),j:ix.j.slice(),g:{}};
+  Object.keys(ix.g).forEach(k=>pool.g[k]=ix.g[k].slice());
+  const used=new Set();
+  const sets=plan.map(c=>{
+    const idxs=[], take=(arr,n)=>{ for(let i=0;i<(n||0);i++){ const v=arr.shift(); if(v!=null){ idxs.push(v); used.add(v); } } };
+    if(c.t==='まんなか'){ take(pool.x,c.use.x); take(pool.j,c.use.j); }
+    else if(c.t==='みどり'){ take(pool.g[c.cl],c.use.gn); take(pool.j,c.use.j); }
+    else if(c.t==='色そろい'){ take(pool.a,c.use.a); take(pool.x,c.use.x); take(pool.j,c.use.j); }
+    else { take(pool.s,c.use.s); take(pool.x,c.use.x); take(pool.j,c.use.j); }
+    return {type:c.t, cluster:(c.t==='みどり'?c.cl:(c.t==='まんなか'?base:null)),
+            idxs, cards:idxs.map(i=>hand[i])};
+  });
+  return {sets, used};
+}
+const nSets = (hand,base) => analyze(hand,base).sets.length;
+const canWin = (hand,base) => nSets(hand,base)>=TARGET_SETS;
+/* 役の代表色（色そろい＝ベース色／記号そろい＝混色なのでベース色を薄く使う） */
+function setColor(s, base){
+  if(s.cluster!=null) return COL[CL[s.cluster].col].hex;
+  return COL[CL[base].col].hex;
+}
+
+const cardHtml = (c, cls) => {
+  if(c===JOKER) return `<div class="card joker ${cls}" style="--c:#4a4458"><div class="km">キョ</div>
+    <div class="cn" style="color:#4a4458">なんでも</div></div>`;
+  const cl=CL[c];
+  return `<div class="card ${cls}" style="--c:${COL[cl.col].hex}">
+    <div class="sym">${clSym(c,24)}</div>
+    <div class="ws">${cl.words.join('<br>')}</div></div>`;
+};
+/* 役の表示：3枚の記号を並べ、下に役名 */
+const setHtml = (s, base) => {
+  const hex=setColor(s, base);
+  const syms=s.cards.map(c=>c===JOKER
+    ? `<span class="jchip">キ</span>`
+    : clSym(c,17,2.6)).join('');
+  return `<div class="set" style="--c:${hex}"><div class="k">${syms}</div>
+    <div class="w">${s.type}</div></div>`;
+};
+function senoFlash(cb){ app.innerHTML=`<div class="seno-flash">せーの！</div>`; setTimeout(cb,800); }
+
+/* 理牌（ベース未定のとき＝ベース選び画面用）：色・記号順 */
+function handOrder(hand){
+  const cnt={}; hand.forEach(c=>{ if(c!==JOKER) cnt[c]=(cnt[c]||0)+1; });
+  const rank=c=> c===JOKER ? 999 : (-cnt[c]*100 + c);
+  return hand.map((_,i)=>i).sort((a,b)=> rank(hand[a])-rank(hand[b]));
+}
+/* 十字での並び順グループ：0=ベースと同じ札 1=ジョーカー 2=色線 3=記号線 4=みどり 5=十字の外 */
+function crossGroup(c, base){
+  if(c===JOKER) return 1;
+  if(isGreen(c)) return 4;
+  if(c===base) return 0;
+  if(CL[c].col===CL[base].col) return 2;
+  if(CL[c].s===CL[base].s) return 3;
+  return 5;
+}
+/* 手牌の並び順。自分で並べ替えたらその順を優先し、なければ十字順に理牌 */
+let handPref = null;                       // ユーザーが並べ替えたカード値の並び
+function orderHand(hand, base, drewIdx){
+  const others=hand.map((_,i)=>i).filter(i=>i!==drewIdx);
+  if(handPref && handPref.length){
+    const pool=others.slice(), out=[];
+    handPref.forEach(val=>{ const k=pool.findIndex(i=>hand[i]===val); if(k>=0) out.push(pool.splice(k,1)[0]); });
+    return out.concat(pool);               // 新しく来た札は右端へ
+  }
+  const key=i=>crossGroup(hand[i],base)*100 + (hand[i]===JOKER?99:hand[i]);
+  return others.sort((a,b)=>key(a)-key(b));
+}
+/* 十字順に理牌（ベース札→ジョーカー→色線→記号線→みどり→外）。引いた札は末尾にオレンジ枠 */
+function handGrid(hand, base, locked, drewIdx, allow){
+  const inSet=new Set();
+  let others=orderHand(hand, base, drewIdx);
+  if(allow) others=others.filter(i=>allow.has(i));
+  const cell=(i,extra)=>{
+    const cls=[]; if(extra) cls.push(extra);
+    if(inSet.has(i)) cls.push('done');
+    const c=hand[i];
+    const style=c===JOKER?'--c:#4a4458':`--c:${COL[CL[c].col].hex}`;
+    return `<div data-i="${i}" class="${cls.join(' ')}" style="${style}">${cardHtml(c,'')}</div>`;
+  };
+  let h='';
+  h+=`<div class="hand" id="handzone">${others.map((i,k)=>{
+    if(k===0) return cell(i);
+    const p=others[k-1];
+    if(!handPref && crossGroup(hand[p],base)!==crossGroup(hand[i],base)) return cell(i,'sep'); // 線が変わる＝区切り
+    return cell(i);
+  }).join('')}${drewIdx!=null?cell(drewIdx,'sep drew'):''}</div>`;
+  return h;
+}
+/* 役の進捗を3スロットで。完成=色付き＋記号3つ、未完=点線 */
+function slotsHtml(sets, base){
+  const done = s => `<div class="slot done" style="--c:${setColor(s,base)}">
+    <div class="slottag">${s.type}</div>
+    <div class="slotk small">${s.cards.map(c=>c===JOKER?`<span class="jchip">キ</span>`:clSym(c,20,2.5)).join('')}</div></div>`;
+  const empty = () => `<div class="slot empty"><div class="slotk">?</div></div>`;
+  const out=[];
+  for(let i=0;i<3;i++) out.push(sets[i]?done(sets[i]):empty());
+  return `<div class="slots">${out.join('')}</div>`;
+}
+function progressHint(v){
+  if(v.canWin) return 'そろった！「アガリ！」を押そう';
+  return `あと ${Math.max(0,3-v.sets.length)}組 でアガリ`;
+}
+/* ===== 3枠に自分で置く（プレイヤーが役を組む） ===== */
+let slotCards=[[],[],[]];        // 各枠に置いたカード値
+/* 枠の判定：完成なら役名、作りかけなら'○○?'、役にならない組み合わせならnull */
+function slotType(cards, base){
+  if(!cards.length) return null;
+  const real=cards.filter(c=>c!==JOKER);
+  const done=cards.length===3, q=done?'':'?';
+  if(!real.length) return (done?'まんなか':'まんなか?');          // 全部キョーカン
+  const same=real.every(c=>c===real[0]);
+  if(same && isGreen(real[0])) return 'みどり'+q;
+  if(isGreen(real[0]) || real.some(c=>isGreen(c))) return null;   // みどりは同じみどりだけ
+  if(same && real[0]===base) return 'まんなか'+q;
+  const bc=CL[base].col, bs=CL[base].s;
+  if(real.every(c=>CL[c].col===bc)) return '色そろい'+q;
+  if(real.every(c=>CL[c].s===bs)) return '記号そろい'+q;
+  return null;
+}
+const slotDone=(cards,base)=>cards.length===3 && slotType(cards,base) && !slotType(cards,base).endsWith('?');
+/* 手札から枠に置いた分を引いた「残り」を返す（表示用のhand index配列） */
+function freeIdx(hand){
+  const need=[]; slotCards.forEach(s=>s.forEach(c=>need.push(c)));
+  const used=new Set();
+  need.forEach(v=>{ const i=hand.findIndex((c,k)=>c===v&&!used.has(k)); if(i>=0) used.add(i); });
+  return hand.map((_,i)=>i).filter(i=>!used.has(i));
+}
+/* 手札から消えたカードが枠に残っていたら掃除 */
+function syncSlots(hand){
+  const pool=hand.slice();
+  slotCards=slotCards.map(s=>s.filter(c=>{ const k=pool.indexOf(c); if(k<0) return false; pool.splice(k,1); return true; }));
+}
+function manualSlotsHtml(v){
+  const rows=[];
+  (v.locked||[]).forEach(s=>rows.push(`<div class="mslot ok fixed" style="--c:${setColor(s,v.base)}">
+    <div class="mcards">${s.cards.map(c=>`<span class="mcard">${cardHtml(c,'')}</span>`).join('')}</div>
+    <div class="mlabel">${s.type}<br><span class="msub">公開ずみ</span></div></div>`));
+  const n0=(v.locked||[]).length;
+  for(let n=0;n<TARGET_SETS-n0;n++){
+    const cards=slotCards[n]||[];
+    const t=slotType(cards, v.base);
+    const ok=slotDone(cards, v.base);
+    const cls=!cards.length?'empty':(t===null?'bad':(ok?'ok':'part'));
+    const hex=ok?setColor({cluster:(t==='みどり'?cards.find(c=>c!==JOKER):(t==='まんなか'?v.base:null))},v.base):'#c9c5ba';
+    rows.push(`<div class="mslot ${cls}" data-slot="${n}" style="--c:${hex}">
+      <div class="mcards">${cards.length
+        ? cards.map((c,ci)=>`<span class="mcard" data-slot="${n}" data-ci="${ci}">${cardHtml(c,'')}</span>`).join('')
+        : `<span class="mempty">ここに3枚ドラッグ</span>`}</div>
+      <div class="mlabel">${cards.length?(t===null?'役になりません':t):''}</div></div>`);
+  }
+  return `<div class="mslots">${rows.join('')}</div>`;
+}
+
+/* ドラッグ＆ドロップ：手札→枠に置く／枠→手札に戻す／手札内で並べ替え */
+let dragJustHappened=false;
+function enableDragDrop(v){
+  const zone=document.getElementById('handzone'); if(!zone) return;
+  const hand=v.hand;
+  const savePref=()=>{ handPref=Array.prototype.map.call(zone.children, c=>hand[+c.dataset.i]); };
+  const slotAt=(x,y)=>{ const el=document.elementFromPoint(x,y); return el?el.closest('.mslot[data-slot]'):null; };
+  const overHand=(x,y)=>{ const el=document.elementFromPoint(x,y); return !!(el&&el.closest('#handzone')); };
+  const reject=s=>{ s.classList.add('shake'); setTimeout(()=>s.classList.remove('shake'),400); };
+  const tryPlace=(n, card)=>{
+    const cur=slotCards[n]||[];
+    if(cur.length>=3 || slotType(cur.concat([card]), v.base)===null) return false;
+    slotCards[n]=cur.concat([card]); return true;
+  };
+  const attach=(el, onDrop)=>{
+    let sx=0, sy=0, moved=false, active=false;
+    el.addEventListener('pointerdown', e=>{
+      active=true; moved=false; sx=e.clientX; sy=e.clientY;
+      if(el.setPointerCapture) el.setPointerCapture(e.pointerId);
+    });
+    el.addEventListener('pointermove', e=>{
+      if(!active) return;
+      const dx=e.clientX-sx, dy=e.clientY-sy;
+      if(!moved && Math.hypot(dx,dy)<8) return;
+      if(!moved){ moved=true; el.classList.add('dragging'); el.style.pointerEvents='none'; }
+      e.preventDefault();
+      el.style.transform=`translate(${dx}px,${dy}px) scale(1.08)`;
+      document.querySelectorAll('.mslot').forEach(s=>s.classList.remove('hover'));
+      const s=slotAt(e.clientX,e.clientY); if(s) s.classList.add('hover');
+    });
+    const end=e=>{
+      if(!active) return;
+      active=false; el.style.transform=''; el.style.pointerEvents=''; el.classList.remove('dragging');
+      document.querySelectorAll('.mslot').forEach(s=>s.classList.remove('hover'));
+      if(!moved) return;
+      dragJustHappened=true; setTimeout(()=>dragJustHappened=false, 80);
+      onDrop(e);
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  };
+
+  /* 手札の札：枠に落とせば配置、手札内なら並べ替え */
+  Array.prototype.forEach.call(zone.children, el=>attach(el, e=>{
+    const s=slotAt(e.clientX,e.clientY);
+    if(s){
+      if(tryPlace(+s.dataset.slot, hand[+el.dataset.i])) render(v); else reject(s);
+      return;
+    }
+    let best=null, bd=1e9;
+    Array.prototype.forEach.call(zone.children, c=>{
+      if(c===el) return;
+      const r=c.getBoundingClientRect();
+      const d=Math.hypot(e.clientX-(r.left+r.width/2), e.clientY-(r.top+r.height/2));
+      if(d<bd){ bd=d; best=c; }
+    });
+    if(best){
+      const r=best.getBoundingClientRect();
+      if(e.clientX < r.left+r.width/2) zone.insertBefore(el,best); else zone.insertBefore(el,best.nextSibling);
+    }
+    Array.prototype.forEach.call(zone.children, c=>c.classList.remove('sep'));
+    savePref();
+  }));
+
+  /* 枠の中の札：手札に戻す／別の枠へ移す */
+  document.querySelectorAll('.mcard').forEach(el=>attach(el, e=>{
+    const n=+el.dataset.slot, ci=+el.dataset.ci, card=(slotCards[n]||[])[ci];
+    if(card==null) return;
+    const s=slotAt(e.clientX,e.clientY);
+    if(s && +s.dataset.slot!==n){
+      const m=+s.dataset.slot;
+      slotCards[n]=slotCards[n].filter((_,k)=>k!==ci);
+      if(tryPlace(m, card)) render(v);
+      else { slotCards[n].splice(ci,0,card); reject(s); }
+      return;
+    }
+    if(!s || overHand(e.clientX,e.clientY)){          // 枠の外に出した＝手札に戻す
+      slotCards[n]=slotCards[n].filter((_,k)=>k!==ci); render(v);
+    }
+  }));
+}
+
+/* 場のようす（プレイヤー一覧＋すて札）はふだん畳んでおく */
+let fieldOpen=false;
+function fieldBox(v){
+  const players=`<div class="field">
+    <div class="fieldttl">プレイヤー（▶＝いまの手番／記号＝公開ずみの役）</div>
+    ${(v.players||[]).map((p,pi)=>`<div class="row ${p.now?'now':''}">
+      <span>${p.now?'▶ ':''}${esc(p.name)}${pi===v.me?'<span class="selftag">あなた</span>':''}${(p.locked||[]).length?
+        ` <span class="lockchips">${p.locked.map(s=>`<span class="lockchip" title="${s.type}">${(s.cards||[]).map(c=>
+          c===JOKER?`<span class="jchip small">キ</span>`:clSym(c,13,2.8)).join('')}</span>`).join('')}</span>`:''}</span>
+      <span>🥒${p.cukes}</span></div>`).join('')}</div>`;
+  return `<details class="fieldbox" ${fieldOpen?'open':''}>
+    <summary>場のようす${v.turnName?`　—　${esc(v.turnName)} さんの番`:''}</summary>
+    ${players}${discardsHtml(v.discards, v.players)}</details>`;
+}
+function bindFieldBox(){
+  const d=document.querySelector('.fieldbox');
+  if(d) d.addEventListener('toggle',()=>{ fieldOpen=d.open; });
+}
+
+/* 捨て札の履歴（河）をプレイヤー別に紋章で */
+function discardsHtml(discards, players){
+  if(!discards||!discards.length||!players) return '';
+  const chip=c=>c===JOKER?`<span class="pchip joker">キ</span>`
+    :`<span class="pchip" style="border-color:${COL[CL[c].col].hex}">${clSym(c,13,2.6)}</span>`;
+  const rows=players.map((p,pi)=>{
+    const mine=discards.filter(d=>d.from===pi);
+    return mine.length?`<div class="drow"><span class="dname">${esc(p.name)}</span>
+      <span>${mine.map(d=>chip(d.card)).join('')}</span></div>`:'';
+  }).join('');
+  return `<div class="field"><div class="fieldttl">すて札（河）</div>${rows}</div>`;
+}
+
+/* ========== 画面描画（ホスト・ゲスト共通） ========== */
+let sendAction = () => {};   // ゲスト時はconn.send、ホスト時はローカル適用
+function render(v){
+  if(!v){ return; }
+  const bar = v.bar ? `<div class="bar"><span>ラウンド${v.bar.round}｜${esc(v.bar.sample)}</span>
+    <span>山札${v.bar.deck}　🥒${v.cukes||0}</span></div>` : '';
+  const myBase = v.base!=null ? `<div class="baserow mine">
+    <span class="basetag">ベース</span>
+    <div class="basecard" style="--c:${COL[CL[v.base].col].hex}">
+      ${clSym(v.base,22)}<div class="bw">${CL[v.base].words[v.baseWord||0]}</div></div></div>` : '';
+
+  if(v.kind==='basePick'){
+    handPref=null;                     // ラウンドが変わったら並べ替えはリセット
+    let sel=null, word=null;
+    const draw=()=>{
+      const c = sel!=null ? v.hand[sel] : null;
+      const ok = c!=null && c!==JOKER && !isGreen(c) && word!=null;
+      app.innerHTML = `${bar}<h2>ひと口味わって、いちばん近い1枚は？</h2>
+        <p class="note">選んだ1枚が「ベース」。この色の線と記号の線が、あなたの十字になります<br>
+        （みどりとキョーカンはベースにできません）</p>
+        <div class="hand">${handOrder(v.hand).map(i=>{
+          const cc=v.hand[i], dis=(cc===JOKER||isGreen(cc))?'off':'';
+          return `<div data-i="${i}" class="${dis}">${cardHtml(cc, i===sel?'sel':'')}</div>`;
+        }).join('')}</div>
+        ${c!=null&&c!==JOKER&&!isGreen(c) ? `<div class="word-pick">
+          <div class="note">この1枚を、どの言葉として感じた？</div>
+          ${CL[c].words.map((w,wi)=>`<button class="word-btn ${word===wi?'sel':''}"
+            style="--c:${COL[CL[c].col].hex}" data-w="${wi}">${w}</button>`).join('')}</div>`:''}
+        <button id="go" ${ok?'':'disabled'}>${ok?`「${CL[c].words[word]}」でベースにする`:'カードと言葉をえらぶ'}</button>`;
+      app.querySelectorAll('.hand > div').forEach(el=>el.onclick=()=>{
+        const i=+el.dataset.i, cc=v.hand[i];
+        if(cc===JOKER||isGreen(cc)) return;
+        sel=i; word=null; draw();
+      });
+      app.querySelectorAll('.word-btn').forEach(el=>el.onclick=()=>{ word=+el.dataset.w; draw(); });
+      $('#go').onclick=()=>{ if(ok) sendAction({kind:'base', card:v.hand[sel], word}); };
+    };
+    draw();
+    return;
+  }
+  if(v.kind==='turn'){
+    syncSlots(v.hand);
+    const nLocked=(v.locked||[]).length;
+    const placed=slotCards.slice(0,3-nLocked).filter(s=>slotDone(s,v.base)).length;
+    const winNow=nLocked+placed>=TARGET_SETS;
+    const free=new Set(freeIdx(v.hand));
+    const dIdx=(v.drewIdx!=null&&free.has(v.drewIdx))?v.drewIdx:null;
+    app.innerHTML = `${bar}${myBase}
+      ${v.notice?`<div class="notice">${esc(v.notice)}</div>`:''}
+      ${manualSlotsHtml(v)}
+      ${winNow?`<div class="hint ready">そろった！「アガリ！」を押そう</div>`:''}
+      <div class="handbar">
+        <span class="tiny">${v.drewFrom==='kyokan'?'キョーカン！ 1枚すてる'
+          :`あと ${TARGET_SETS-nLocked-placed}組（枠にドラッグ）`}</span>
+        <button id="autosort" class="sortbtn tiny">↺ ならべ直す</button>
+      </div>
+      ${handGrid(v.hand, v.base, null, dIdx, free)}
+      ${winNow?`<button id="win" class="big">🎉 アガリ！</button>`:''}
+      <button id="go" class="sub" disabled>これを捨てる</button>
+      ${fieldBox(v)}`;
+    let sel=null;
+    const clearSel=()=>{ sel=null;
+      app.querySelectorAll('.card').forEach(c=>c.classList.remove('sel'));
+      app.querySelectorAll('.hand > div').forEach(d=>d.classList.remove('picked'));
+      const g=$('#go'); if(g) g.disabled=true; };
+    app.querySelectorAll('.hand > div').forEach(el=>el.onclick=()=>{
+      if(dragJustHappened) return;              // 並べ替え直後のタップは無視
+      clearSel(); sel=+el.dataset.i;
+      el.querySelector('.card').classList.add('sel');
+      el.classList.add('picked');
+      $('#go').disabled=false;
+    });
+    // 枠に置く
+    app.querySelectorAll('.mslot[data-slot]').forEach(el=>el.onclick=()=>{
+      if(sel==null) return;
+      const n=+el.dataset.slot, cur=slotCards[n]||[];
+      if(cur.length>=3) return;
+      const cand=cur.concat([v.hand[sel]]);
+      if(slotType(cand, v.base)===null){ el.classList.add('shake'); setTimeout(()=>el.classList.remove('shake'),400); return; }
+      slotCards[n]=cand; render(v);
+    });
+    // 枠から戻す
+    app.querySelectorAll('.mcard').forEach(el=>el.onclick=e=>{
+      e.stopPropagation();
+      const n=+el.dataset.slot, ci=+el.dataset.ci;
+      slotCards[n]=slotCards[n].filter((_,k)=>k!==ci); render(v);
+    });
+    enableDragDrop(v); bindFieldBox();
+    $('#autosort').onclick=()=>{ handPref=null; render(v); };
+    $('#go').onclick=()=>{ if(sel!=null) sendAction({kind:'discard', idx:sel}); };
+    if(winNow) $('#win').onclick=()=>sendAction({kind:'win', slots:slotCards.slice(0,3-nLocked)});
+    return;
+  }
+  if(v.kind==='wait'){
+    syncSlots(v.hand);
+    const free=new Set(freeIdx(v.hand));
+    const kb = v.kyokanOffer ? `<div class="kyokan-alert">
+        <div class="kbanner">
+          <div class="kcard">${cardHtml(v.kyokanOffer.card,'')}</div>
+          <div class="ktext"><b>キョーカン！ できます</b>
+            <div class="note">${esc(v.kyokanOffer.from)} さんの捨て札で役がそろいます</div>
+            <div class="timer" id="tm">のこり ${KYOKAN_SEC} 秒</div></div>
+        </div>
+        <button id="take">キョーカン！ もらう</button>
+        <button id="pass" class="sub">パスする</button>
+      </div>`
+      : (v.kyokanWait ? `<div class="kyokan-wait">${v.kyokanWait.passed?'パスしました。':''}キョーカンの確認中…</div>` : '');
+    app.innerHTML = `${bar}${myBase}
+      ${v.notice?`<div class="notice">${esc(v.notice)}</div>`:''}
+      ${kb}
+      ${manualSlotsHtml(v)}
+      <div class="handbar"><span class="tiny">${esc(v.turnName)} さんの番です…</span></div>
+      ${handGrid(v.hand, v.base, null, null, free)}
+      ${fieldBox(v)}`;
+    bindFieldBox();
+    if(v.kyokanOffer){
+      let left=KYOKAN_SEC;
+      const iv=setInterval(()=>{ left--; const el=$('#tm');
+        if(el) el.textContent=`のこり ${left} 秒`; if(left<=0) clearInterval(iv); },1000);
+      $('#take').onclick=()=>{ clearInterval(iv); sendAction({kind:'kyokan'}); };
+      $('#pass').onclick=()=>{ clearInterval(iv); sendAction({kind:'pass'}); };
+    }
+    return;
+  }
+  if(v.kind==='armed'){
+    app.innerHTML = `<div class="center" style="padding-top:60px">
+      <p class="note">役がそろいました。ベースは伏せたまま</p>
+      <h2>${v.isHost?'みんなの顔が上がったら…':'顔を上げて、ホストの「せーの！」を待とう'}</h2>
+      ${v.isHost?`<button id="seno" style="margin-top:24px">せーの！</button>`:''}</div>`;
+    if(v.isHost) $('#seno').onclick=()=>sendAction({kind:'seno'});
+    return;
+  }
+  if(v.kind==='reveal'){
+    app.innerHTML = `${bar}
+      <div class="reveal">${v.board.map(p=>`<div class="pcard">
+        <div class="who"><span>${esc(p.name)}${p.first?'（先アガリ）':''}</span>
+          <span>+${p.gain}🥒 ${p.badges.length?`<span class="note">${p.badges.join('・')}</span>`:''}</span></div>
+        <div class="baserow">
+          <span class="basetag">ベース</span>
+          <div class="basecard" style="--c:${COL[CL[p.base].col].hex}">
+            ${clSym(p.base,26)}<div class="bw">${CL[p.base].words[p.baseWord]}</div></div>
+        </div>
+        <div class="sets">${p.sets.map(s=>setHtml(s,p.base)).join('')||'<span class="note">役なし</span>'}</div>
+      </div>`).join('')}</div>
+      ${v.canVote?`<h2>いちばん共感した人は？</h2>
+        ${v.board.map((p,i)=>i===v.me?'':`<button class="sub vote" data-i="${i}">${esc(p.name)}</button>`).join('')}`
+      :`<p class="center note">投票ずみ。みんなを待っています…</p>`}`;
+    app.querySelectorAll('.vote').forEach(el=>el.onclick=()=>sendAction({kind:'vote', to:+el.dataset.i}));
+    return;
+  }
+  if(v.kind==='score'){
+    app.innerHTML = `${bar}<h1>ラウンド${v.round} けっか</h1>
+      <div class="totals">${v.totals.map(t=>`<div><span>${esc(t.name)}${t.top?' 👑':''}</span>
+        <span>🥒×${t.cukes}</span></div>`).join('')}</div>
+      ${v.voteLine?`<p class="center note">${esc(v.voteLine)}</p>`:''}
+      ${v.isHost?(v.gameOver?`<button id="fin">おわる</button>`
+        :`<button id="next">つぎのラウンドへ（サンプルを替えて）</button>
+          <button id="fin" class="sub">ここでおわる</button>`)
+       :`<p class="center note">${v.gameOver?'おつかれさまでした':'ホストが次のラウンドを始めます'}</p>`}`;
+    if(v.isHost){
+      const nx=$('#next'); if(nx) nx.onclick=()=>{
+        const s=prompt('つぎのサンプルは？','');
+        if(s!==null) sendAction({kind:'nextRound', sample:s||'（未記入）'});
+      };
+      const fin=$('#fin'); if(fin) fin.onclick=()=>sendAction({kind:'finish'});
+    }
+    return;
+  }
+  if(v.kind==='message'){
+    app.innerHTML=`<div class="center" style="padding-top:70px"><h2>${esc(v.text)}</h2>
+      ${v.sub?`<p class="note">${esc(v.sub)}</p>`:''}</div>`;
+    return;
+  }
+}
+
+/* ========== ホスト（ゲーム進行の権威） ========== */
+const PREFIX='kyokan-jan-';
+function roomCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return [0,0,0,0].map(()=>A[Math.floor(Math.random()*A.length)]).join(''); }
+
+function startHost(sample, myname){
+  const code=roomCode();
+  const peer=new Peer(PREFIX+code);
+  window.__peer=peer;
+  const conns=[];                  // index 0 はホスト（conn無し）
+  const P=[{name:myname, conn:null, hand:[], color:null, locked:[], words:null, cukes:0, vote:null}];
+  let deck=[], round=1, turn=0, phase='lobby', lastDiscard=null, discardPile=[],
+      kyokanQueue=[], kyokanTimer=null, kyokanWatch=null, winner=null, finalLapLeft=0, curSample=sample;
+
+  const view = (i,v) => {
+    try{ if(i===0) render(v); else if(P[i].conn && P[i].conn.open) P[i].conn.send({t:'view', v}); }
+    catch(e){ console.error('view error', e); window.__viewErr=String(e&&e.stack||e); }
+  };
+  const bar = () => ({round, sample:curSample, deck:deck.length});
+  const pubPlayers = () => P.map((p,i)=>({name:p.name, cukes:p.cukes, now:i===turn,
+    locked:p.locked.map(s=>({type:s.type, cards:s.cards}))}));
+
+  let notice=null;                              // 「○○がキョーカン！」などの一言（1回だけ流す）
+  function waitView(i){
+    const p=P[i];
+    return {kind:'wait', bar:bar(), base:p.base, baseWord:p.baseWord, cukes:p.cukes, hand:p.hand,
+            sets:allSets(p), players:pubPlayers(), turnName:P[turn].name, me:i,
+            discards:discardPile, locked:p.locked, notice};
+  }
+  function pushViews(){
+    P.forEach((p,i)=>{
+      if(phase!=='play') return;
+      if(i===turn && p.pendingTurn) return;      // 手番中の本人は個別送信済み
+      view(i, waitView(i));
+    });
+    notice=null;
+  }
+
+  /* --- ロビー --- */
+  function lobby(){
+    app.innerHTML=`<h1>部屋コード</h1><div class="roomcode">${code}</div>
+      <p class="note center">みんなは「部屋に入る」でこのコードを入力<br>お題：${esc(curSample)}</p>
+      <div class="waitlist center" id="wl"></div>
+      <button id="start" disabled>はじめる（2人以上）</button>
+      <button id="back" class="sub">やめる</button>`;
+    $('#back').onclick=()=>{ peer.destroy(); home(); };
+    $('#start').onclick=()=>{ if(P.length>=2) beginRound(); };
+    refreshLobby();
+  }
+  function refreshLobby(){
+    if(phase!=='lobby') return;
+    const wl=$('#wl'); if(wl) wl.innerHTML=P.map(p=>`✓ ${esc(p.name)}`).join('<br>');
+    const st=$('#start'); if(st) st.disabled=P.length<2;
+    conns.forEach(c=>c.open&&c.send({t:'lobby', names:P.map(p=>p.name)}));
+  }
+
+  /* --- ラウンド開始：9枚配る→ベース1枚を伏せて脇に置く（残り8枚が手札） --- */
+  function beginRound(){
+    phase='base'; deck=buildDeck(); winner=null; lastDiscard=null; discardPile=[]; finalLapLeft=0;
+    P.forEach(p=>{ p.hand=deck.splice(0,HAND); p.base=null; p.baseWord=null; p.locked=[]; p.vote=null; });
+    P.forEach((p,i)=>view(i,{kind:'basePick', bar:bar(), hand:p.hand}));
+  }
+  function onBase(i, card, word){
+    const p=P[i];
+    if(phase!=='base'||p.base!=null||card===JOKER||isGreen(card)) return;
+    const ix=p.hand.indexOf(card); if(ix<0) return;
+    p.hand.splice(ix,1);                       // ベースは手札から抜いて脇に置く
+    p.base=card; p.baseWord=(word==null?0:word);
+    view(i,{kind:'message', text:`「${clName(card)}」の${CL[card].words[p.baseWord]}をベースに`,
+            sub:'伏せて置きました。ほかの人を待っています…'});
+    if(P.every(q=>q.base!=null)){ phase='play'; turn=0; startTurn(); }
+  }
+
+  /* --- 手番 --- */
+  /* プレイヤーが自分で組んだ3枠の申告を検証（手札に実在し、各組が役として成立するか） */
+  function validClaim(p, slots){
+    if(!Array.isArray(slots)) return false;
+    const full=slots.filter(s=>Array.isArray(s)&&s.length===3);
+    if(p.locked.length+full.length < TARGET_SETS) return false;
+    const pool=p.hand.slice();
+    for(const s of full){
+      for(const c of s){ const k=pool.indexOf(c); if(k<0) return false; pool.splice(k,1); }
+      const t=slotType(s, p.base);
+      if(!t || t.endsWith('?')) return false;
+    }
+    return true;
+  }
+  function allSets(p){ return p.locked.concat(analyze(p.hand,p.base).sets).slice(0,TARGET_SETS); }
+  function isWin(p){ return allSets(p).length>=TARGET_SETS; }
+  function startTurn(){
+    if(!deck.length){ return toArmed(); }
+    const p=P[turn];
+    const drew=deck.pop();
+    p.hand.push(drew);
+    p.pendingTurn=true;
+    view(turn,{kind:'turn', bar:bar(), base:p.base, baseWord:p.baseWord, cukes:p.cukes, hand:p.hand,
+               sets:allSets(p), canWin:isWin(p), players:pubPlayers(), discards:discardPile,
+               locked:p.locked, drew, drewIdx:p.hand.length-1});
+    pushViews();
+  }
+  function onDiscard(i, idx){
+    if(phase!=='play'||i!==turn) return;
+    const p=P[i]; if(idx<0||idx>=p.hand.length) return;
+    const card=p.hand.splice(idx,1)[0];
+    p.pendingTurn=false;
+    lastDiscard={card, from:i};
+    discardPile.push({card, from:i});
+    // キョーカン候補（下家順）
+    kyokanQueue=[];
+    for(let k=1;k<P.length;k++){
+      const q=(i+k)%P.length;
+      const before=nSets(P[q].hand,P[q].base);
+      const after=nSets(P[q].hand.concat([card]),P[q].base);
+      if(after>before) kyokanQueue.push(q);
+    }
+    if(kyokanQueue.length) offerKyokan();
+    else nextTurn();
+  }
+  function offerKyokan(){
+    if(!lastDiscard || !kyokanQueue.length){ phase='play'; return nextTurn(); }   // 念のため
+    phase='kyokan';
+    const from=P[lastDiscard.from].name;
+    P.forEach((p,i)=>{
+      const v=waitView(i);
+      if(kyokanQueue.includes(i)) v.kyokanOffer={card:lastDiscard.card, from};
+      else v.kyokanWait={card:lastDiscard.card, from};
+      view(i, v);
+    });
+    notice=null;
+    clearTimeout(kyokanTimer);
+    kyokanTimer=setTimeout(()=>{ if(phase==='kyokan'){ kyokanQueue=[]; phase='play'; nextTurn(); } }, KYOKAN_SEC*1000);
+    clearInterval(kyokanWatch);          // 応答待ちが空になったら必ず進める番人
+    kyokanWatch=setInterval(()=>{
+      if(phase!=='kyokan'){ clearInterval(kyokanWatch); return; }
+      if(!kyokanQueue.length){ clearInterval(kyokanWatch); clearTimeout(kyokanTimer); phase='play'; nextTurn(); }
+    }, 300);
+  }
+  function onKyokan(i){
+    if(phase!=='kyokan'||!kyokanQueue.includes(i)||!lastDiscard) return;
+    clearTimeout(kyokanTimer); phase='play'; kyokanQueue=[];
+    const q=P[i], card=lastDiscard.card; lastDiscard=null; discardPile.pop();
+    q.hand.push(card);
+    // 取った札を含む完成役をロック（公開）
+    const a=analyze(q.hand,q.base);
+    const takenIdx=q.hand.length-1;
+    const newSet=a.sets.find(s=>s.idxs.includes(takenIdx)) || a.sets[a.sets.length-1];
+    if(newSet){
+      q.locked.push({type:newSet.type, cluster:newSet.cluster, cards:newSet.cards.slice()});
+      newSet.idxs.slice().sort((x,y)=>y-x).forEach(ix=>q.hand.splice(ix,1));
+    }
+    turn=i;
+    notice=`${q.name} がキョーカン！${newSet?`「${newSet.type}」を公開`:''}`;
+    if(isWin(q)){ return declareWin(i); }
+    q.pendingTurn=true;
+    view(i,{kind:'turn', bar:bar(), base:q.base, baseWord:q.baseWord, cukes:q.cukes, hand:q.hand, drewFrom:'kyokan',
+            sets:allSets(q), canWin:false, players:pubPlayers(), discards:discardPile, locked:q.locked, notice});
+    pushViews();
+  }
+  function onPass(i){
+    if(phase!=='kyokan') return;
+    kyokanQueue=kyokanQueue.filter(q=>q!==i);
+    const v=waitView(i); v.kyokanWait={card:lastDiscard?lastDiscard.card:null, passed:true};
+    view(i, v);
+    if(!kyokanQueue.length){ clearTimeout(kyokanTimer); phase='play'; nextTurn(); }
+  }
+  function nextTurn(){
+    lastDiscard=lastDiscard||null;
+    if(winner!=null){                        // 最終ラウンド：残り人数分だけ手番を回す
+      if(finalLapLeft<=0) return toArmed();
+      finalLapLeft--;
+    }
+    turn=(turn+1)%P.length; startTurn();
+  }
+  function declareWin(i){
+    winner=i;
+    finalLapLeft=P.length-1;
+    if(finalLapLeft===0) return toArmed();
+    P.forEach((p,j)=>view(j,{kind:'message', text:`${P[i].name} さん、アガリ！`,
+      sub:'最終ラウンド：ほかの人があと1手番ずつ'}));
+    setTimeout(()=>{ turn=i; nextTurn(); }, 1400);
+  }
+
+  /* --- 開示（v5：宣言はベース1枚だけなので、そのまま「せーの」へ） --- */
+  function toArmed(){
+    phase='armed';
+    P.forEach(p=>{ p.finalSets=allSets(p); });
+    P.forEach((p,j)=>view(j,{kind:'armed', isHost:j===0}));
+  }
+  function onSeno(){
+    if(phase!=='armed') return;
+    phase='reveal';
+    // v5得点：役1／まんなか+1／それが誰かのベースと同じ+1／ベース一致+2／言葉まで+1／先アガリ+1
+    const board=P.map((p,i)=>{
+      let gain=p.finalSets.length; const badges=[];
+      const others=P.filter((q,j)=>j!==i);
+      const same=others.filter(q=>q.base===p.base);
+      if(p.finalSets.some(s=>s.type==='まんなか')){
+        gain++; badges.push('まんなか');
+        if(same.length){ gain++; badges.push('ど真ん中'); }
+      }
+      if(same.length){
+        gain+=2; badges.push('ベース一致');
+        if(same.some(q=>q.baseWord===p.baseWord)){ gain++; badges.push('言葉まで同じ'); }
+      }
+      if(winner===i){ gain++; badges.push('先アガリ'); }
+      return {name:p.name, base:p.base, baseWord:p.baseWord, sets:p.finalSets, gain, badges, first:winner===i};
+    });
+    P.forEach((p,i)=>{ p.roundGain=board[i].gain; });
+    senoFlash(()=>{
+      P.forEach((p,i)=>view(i,{kind:'reveal', bar:bar(), board, canVote:true, me:i}));
+      if(P.length===1){ P[0].vote=0; tally(board); }
+    });
+    hostBoard=board;
+  }
+  let hostBoard=null;
+  function onVote(i, to){
+    if(phase!=='reveal'||P[i].vote!=null) return;
+    P[i].vote=to;
+    view(i,{kind:'reveal', bar:bar(), board:hostBoard, canVote:false, me:i});
+    if(P.every(p=>p.vote!=null)) tally(hostBoard);
+  }
+  function tally(board){
+    phase='score';
+    const cnt={}; P.forEach(p=>{ if(p.vote!=null) cnt[p.vote]=(cnt[p.vote]||0)+1; });
+    let top=null, max=0; Object.entries(cnt).forEach(([k,v])=>{ if(v>max){max=v; top=+k;} });
+    P.forEach((p,i)=>{ p.cukes += p.roundGain + (i===top?1:0); });
+    const voteLine = top!=null ? `「いちばん共感した」→ ${P[top].name} さん（+1🥒）` : '';
+    const best=Math.max(...P.map(p=>p.cukes));
+    const gameOver = best>=GOAL_CUKES || round>=3;
+    const totals=P.map(p=>({name:p.name, cukes:p.cukes, top:p.cukes===best}));
+    P.forEach((p,i)=>view(i,{kind:'score', bar:bar(), round, totals, voteLine, isHost:i===0, gameOver}));
+  }
+  function nextRound(sample){
+    if(phase!=='score') return;
+    round++; curSample=sample; beginRound();
+  }
+  function finish(){
+    P.forEach((p,i)=>view(i,{kind:'message', text:'おつかれさまでした', sub:'また味わったら遊ぼう'}));
+  }
+
+  /* --- アクション受付 --- */
+  function act(i,a){
+    switch(a.kind){
+      case 'base': onBase(i,a.card,a.word); break;
+      case 'discard': onDiscard(i,a.idx); break;
+      case 'win': if(phase==='play'&&i===turn && (validClaim(P[i],a.slots)||isWin(P[i]))) declareWin(i); break;
+      case 'kyokan': onKyokan(i); break;
+      case 'pass': onPass(i); break;
+      case 'seno': if(i===0) onSeno(); break;
+      case 'vote': onVote(i,a.to); break;
+      case 'nextRound': if(i===0) nextRound(a.sample); break;
+      case 'finish': if(i===0) finish(); break;
+    }
+  }
+  sendAction = a => act(0,a);
+  window.__hostAct = act;        // 検証用
+  window.__P = P;                // 検証用
+  window.__beginRound = beginRound;  // 検証用
+  window.__state = () => ({phase, turn, deck:deck.length, finalLapLeft, winner, ld:!!lastDiscard,
+    kq:kyokanQueue.slice(), hands:P.map(p=>p.hand.length), locked:P.map(p=>p.locked.length)});
+
+  peer.on('open', lobby);
+  peer.on('error', e=>{ app.innerHTML=`<h1>接続エラー</h1><p class="note">${esc(e.type)}</p>
+    <button id="b">もどる</button>`; $('#b').onclick=home; });
+  peer.on('connection', conn=>{
+    conn.on('data', msg=>{
+      if(msg.t==='join'&&phase==='lobby'){
+        conns.push(conn); P.push({name:msg.name||'ゲスト', conn, hand:[], color:null, locked:[],
+                                  words:null, cukes:0, vote:null});
+        refreshLobby();
+      } else if(msg.t==='action'){
+        const i=P.findIndex(p=>p.conn===conn); if(i>0) act(i,msg.a);
+      }
+    });
+  });
+}
+
+/* ========== ゲスト ========== */
+function startGuest(code, myname){
+  app.innerHTML=`<p class="center note" style="padding-top:70px">接続中…</p>`;
+  const peer=new Peer();
+  window.__peer=peer;
+  peer.on('open',()=>{
+    const conn=peer.connect(PREFIX+code,{reliable:true});
+    sendAction = a => conn.send({t:'action', a});
+    conn.on('open',()=>conn.send({t:'join', name:myname}));
+    conn.on('data', msg=>{
+      if(msg.t==='lobby'){
+        app.innerHTML=`<h1>部屋 ${esc(code)}</h1>
+          <p class="waitlist center">${msg.names.map(n=>`✓ ${esc(n)}`).join('<br>')}</p>
+          <p class="note center">ホストの「はじめる」を待っています…</p>`;
+      } else if(msg.t==='view'){ render(msg.v); }
+    });
+    conn.on('close',()=>{ app.innerHTML=`<h1>切断されました</h1><button id="b">もどる</button>`;
+      $('#b').onclick=home; });
+  });
+  peer.on('error', e=>{ app.innerHTML=`<h1>入れませんでした</h1><p class="note">${esc(e.type)}</p>
+    <button id="b">もどる</button>`; $('#b').onclick=home; });
+}
+
+/* ========== ホーム／ナビ ========== */
+let inGame=false;
+function setInGame(v){
+  inGame=v;
+  const b=$('#navBtn');
+  if(b) b.textContent = v ? 'タイトルへ' : 'ゲームをえらぶ';
+}
+function goHome(){
+  try{ if(window.__peer){ window.__peer.destroy(); window.__peer=null; } }catch(e){}
+  home();
+}
+$('#navBtn').onclick=()=>{
+  if(!inGame){ location.href='index.html'; return; }
+  if(confirm('ゲームをやめて、タイトルにもどりますか？')) goHome();
+};
+
+function home(){
+  setInGame(false);
+  app.innerHTML=`<h1>キョーカンじゃん</h1>
+    <div class="tagline">ベース1枚が色と記号の十字を引く。3組そろえてアガリ（v5）</div>
+    <button id="host">部屋をつくる</button>
+    <button id="join" class="sub">部屋に入る</button>
+    <p class="note">・3〜5人／全員で同じものを味わってから<br>
+    ・9枚から「ベース」を1枚伏せる。残り8枚で、ベースの色そろい／記号そろい／まんなかを3組（みどり3枚も可）<br>
+    ・最後にみんなで「せーの」。ベースが重なったら共感、言葉まで同じなら真の共感</p>
+    <p class="note center"><a href="seno.html" style="color:var(--accent)">→ キョーカンせーの（5分版）</a></p>`;
+  $('#host').onclick=()=>{
+    app.innerHTML=`<h1>部屋をつくる</h1><h2>お題（味わうもの）</h2>
+      <input id="sample" placeholder="例：純米酒A">
+      <h2>あなたのなまえ</h2><input id="nm" placeholder="なまえ">
+      <button id="mk">部屋をひらく</button><button id="bk" class="sub">もどる</button>`;
+    $('#bk').onclick=home;
+    $('#mk').onclick=()=>{ const n=$('#nm').value.trim(); if(!n){alert('なまえをいれてください');return;}
+      setInGame(true); startHost($('#sample').value.trim()||'（未記入）', n); };
+  };
+  $('#join').onclick=()=>{
+    app.innerHTML=`<h1>部屋に入る</h1><h2>部屋コード</h2>
+      <input id="cd" placeholder="例：AB3C" maxlength="4" style="text-transform:uppercase">
+      <h2>あなたのなまえ</h2><input id="nm" placeholder="なまえ">
+      <button id="go">入る</button><button id="bk" class="sub">もどる</button>`;
+    $('#bk').onclick=home;
+    $('#go').onclick=()=>{ const c=$('#cd').value.trim().toUpperCase(), n=$('#nm').value.trim();
+      if(c.length!==4||!n){alert('コード4文字となまえを');return;} setInGame(true); startGuest(c,n); };
+  };
+}
+home();
+</script>
+</body>
+</html>

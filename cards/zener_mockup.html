@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>キョーカン 透視カード意匠モック</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; background:#f7f5f0; color:#3a3a3a;
+    font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif; }
+  .wrap { max-width:900px; margin:0 auto; padding:26px 20px 60px; }
+  h1 { font-size:1.5rem; margin:10px 0 4px; }
+  .sub { color:#999; font-size:.82rem; margin-bottom:26px; }
+  h2 { font-size:1.05rem; margin:34px 0 4px; padding-top:18px; border-top:1px solid #e3dfd5; }
+  .note { font-size:.8rem; color:#8a8a8a; line-height:1.8; margin:2px 0 14px; }
+
+  /* 記号一覧 */
+  .symrow { display:flex; flex-wrap:wrap; gap:18px; margin:14px 0; }
+  .symcell { text-align:center; }
+  .med { border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .med.lg { width:74px; height:74px; }
+  .symname { font-size:.92rem; font-weight:700; margin-top:7px; }
+  .symmean { font-size:.72rem; color:#999; line-height:1.6; }
+
+  /* 実寸カード 63mm */
+  .sheet { display:flex; flex-wrap:wrap; gap:8mm; margin:16px 0; }
+  .card63 { width:63mm; height:63mm; position:relative; }
+  .frame { position:absolute; inset:2mm; border:1.1mm solid var(--c); border-radius:2.5mm; background:#fff; }
+  .edge { position:absolute; inset:0; display:flex; align-items:flex-end; justify-content:center; }
+  .edge.n { transform:rotate(180deg); } .edge.e { transform:rotate(-90deg); } .edge.w { transform:rotate(90deg); }
+  .word { margin-bottom:4.6mm; font-size:12.5pt; font-weight:600; letter-spacing:.04em; color:#3a3a3a; white-space:nowrap; }
+  .embwrap { margin-bottom:3.2mm; display:flex; flex-direction:column; align-items:center; gap:.8mm; }
+  .med.pr { width:10.5mm; height:10.5mm; }
+  .colorname { font-size:5.5pt; font-weight:700; letter-spacing:.2em; color:var(--c); }
+  .minilist { font-size:5pt; color:#aaa; }
+  .ring { position:absolute; top:50%; left:50%; width:9mm; height:9mm; border:.45mm solid var(--c);
+    border-radius:50%; opacity:.22; transform:translate(-50%,-50%); }
+  /* 中央配置版 */
+  .ctr { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); }
+  .med.ctr-med { width:24mm; height:24mm; }
+  .band { position:absolute; left:9mm; right:9mm; bottom:4.6mm; height:5.2mm; border-radius:2.6mm;
+    background:var(--c); display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:6.5pt; font-weight:700; letter-spacing:.28em; }
+  .caplabel { font-size:.78rem; color:#777; text-align:center; margin-top:6px; }
+  .cardwrap { display:flex; flex-direction:column; align-items:center; }
+
+  /* アプリ実寸（62px / 紋章23px） */
+  .hand { display:flex; flex-wrap:wrap; gap:9px 6px; margin:12px 0; }
+  .hand > div { width:62px; position:relative; }
+  .hand > div.dup { margin-left:-44px; }
+  .hand > div.dup .mini { box-shadow:-3px 0 5px rgba(0,0,0,.13); }
+  .hand > div.sep { margin-left:11px; }
+  .hand > div.sep::before { content:''; position:absolute; left:-7px; top:14%; bottom:14%; width:1px; background:#e2ded4; }
+  .hand > div.done::after { content:''; position:absolute; left:4px; right:4px; bottom:-5px; height:3px;
+    border-radius:2px; background:var(--c); }
+  .mini { aspect-ratio:1; border:2px solid var(--c); border-radius:9px; background:#fff;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; }
+  .med.app { width:23px; height:23px; }
+  .cn { font-size:.46rem; color:var(--c); font-weight:700; }
+  .ws { font-size:.42rem; color:#8a8a8a; line-height:1.28; text-align:center; }
+
+  /* 比較 */
+  .cmp { display:flex; flex-wrap:wrap; gap:26px; align-items:flex-end; margin:14px 0; }
+  .cmp .col { text-align:center; }
+  .cmp .pair { display:flex; align-items:center; gap:10px; justify-content:center; }
+  .cap { font-size:.78rem; color:#777; margin-top:8px; }
+  .warn { background:#fff8e0; border:1px solid #ecd27a; border-radius:9px; padding:9px 13px;
+    font-size:.8rem; color:#7a6100; line-height:1.8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>キョーカン 透視カード意匠モック</h1>
+  <div class="sub">ゼナーカード（ESP実験の透視カード）5記号で136枚を構成する案。実寸・アプリ実寸で見え方を確認するための試作。印刷データとアプリには未反映。</div>
+
+  <h2>1. 5つの記号</h2>
+  <p class="note">赤・青・黄（感じ方の切り口）には共通の3記号。緑（全体印象）は残る2記号を専用に使う。</p>
+  <div class="symrow" id="symlist"></div>
+
+  <h2>2. 実寸カード（63mm角）</h2>
+  <p class="note">3辺に言葉、1辺に記号。選んだ言葉を上にして置くと、向かいの人から正位置で読める。</p>
+  <div class="sheet" id="sheet"></div>
+
+  <h2>3. アプリ実寸（カード62px・記号23px）</h2>
+  <p class="note">スマホでの手牌。理牌（色・記号順）＋同じカードは重ね＋完成3枚に下線。小さい丸の中で図形がどう見えるかの判定用。</p>
+  <div class="hand" id="apphand"></div>
+
+  <h2>3b. 記号を中央に（案）</h2>
+  <p class="note">3辺に言葉／残る1辺は色帯。記号は中央なので、どの向きに置いても記号がまっすぐ読める。
+  中央の描き方は2通り——<b>A：色丸に白抜き</b>（今の紋章と同じ質感）／<b>B：色の線画のみ</b>（本物の透視カードに近い）。</p>
+  <div class="sheet" id="centersheet"></div>
+
+  <h2>4. 「なみ」の描き方</h2>
+  <div class="warn">ゼナー式のうねる3本を色丸に入れると、<b>温泉マーク（♨）の湯気に見える</b>。直線寄りの三本にすると「川」に近づき、水の流れとして読める。</div>
+  <div class="cmp" id="namicmp"></div>
+
+  <h2>5. ☆の代替案</h2>
+  <div class="warn">☆は「三ツ星」のような評価・優劣に見える恐れがある（このゲームは色や言葉に上下を作らない設計）。尖りを表す他の形も並べて比較。</div>
+  <div class="cmp" id="starcmp"></div>
+</div>
+
+<script>
+const COL = { R:{ja:'あか',attr:'味・印象',hex:'#C1443C'}, B:{ja:'あお',attr:'香り',hex:'#2E5E92'},
+              Y:{ja:'き',attr:'口あたり',hex:'#B8860B'}, G:{ja:'みどり',attr:'全体印象',hex:'#3F7D46'} };
+
+/* ===== 記号（白抜きSVG） ===== */
+function svg(inner, s){ return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none"
+  stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`; }
+const SH = {
+  maru:  s => svg(`<circle cx="12" cy="12" r="7.2"/>`, s*0.62),
+  nami:  s => svg(`<path d="M6 4.2c-2.6 4 2.6 7.6 0 11.6"/><path d="M12 3.4c-2.6 4.4 2.6 8.4 0 12.8"/>
+                   <path d="M18 4.2c-2.6 4 2.6 7.6 0 11.6"/>`, s*0.62),
+  hoshi: s => svg(`<path d="M12 3.2l2.66 6.1 6.64.53-5.04 4.36 1.53 6.48L12 17.5l-5.79 3.17 1.53-6.48L2.7 9.83l6.64-.53z"/>`, s*0.62),
+  juji:  s => svg(`<path d="M12 4v16M4 12h16"/>`, s*0.62),
+  shi:   s => svg(`<rect x="5.2" y="5.2" width="13.6" height="13.6" rx="1.2"/>`, s*0.62),
+  kawa:  s => svg(`<path d="M6.4 5.2c-.9 4.2-.9 8.4 0 12.6"/><path d="M12 4c-.5 4.6-.5 9.4 0 14"/>
+                   <path d="M17.6 5.2c.9 4.2.9 8.4 0 12.6"/>`, s*0.62),
+  yoko:  s => svg(`<path d="M4 8.5c2.7-2.4 5.3 2.4 8 0s5.3 2.4 8 0"/><path d="M4 12c2.7-2.4 5.3 2.4 8 0s5.3 2.4 8 0"/>
+                   <path d="M4 15.5c2.7-2.4 5.3 2.4 8 0s5.3 2.4 8 0"/>`, s*0.62),
+  sankaku: s => svg(`<path d="M12 3.6l8.4 15.6H3.6z"/>`, s*0.62),
+  hishi: s => svg(`<path d="M12 3l8 9-8 9-8-9z"/>`, s*0.62),
+  kirari: s => svg(`<path d="M12 2.8v18.4M2.8 12h18.4M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/>`, s*0.62),
+};
+const med = (shape, hex, cls, size) =>
+  `<div class="med ${cls}" style="background:${hex}">${SH[shape](size)}</div>`;
+
+/* ===== 記号一覧 ===== */
+const LIST = [
+  ['maru','まる','ゆたか・まるい<br>（赤青黄 共通）','#6b6b6b'],
+  ['nami','なみ（川）','すずやか・みずみずしい<br>（赤青黄 共通）','#6b6b6b'],
+  ['hoshi','ほし','際立つ・とがった<br>（赤青黄 共通）','#6b6b6b'],
+  ['juji','十字','緑＝穏<br>バランス・きれい・やさしい','#3F7D46'],
+  ['shi','しかく','緑＝妙<br>余韻・奥深い・不思議','#3F7D46'],
+];
+document.getElementById('symlist').innerHTML = LIST.map(([sh,nm,mean,hex])=>
+  `<div class="symcell">${med(sh,hex,'lg',74)}<div class="symname">${nm}</div>
+   <div class="symmean">${mean}</div></div>`).join('');
+
+/* ===== カードデータ ===== */
+const CARDS = [
+  ['R','maru', ['甘い','コク','濃厚']],
+  ['R','nami', ['酸っぱい','さっぱり','フルーティ']],
+  ['R','hoshi',['苦い','うま味','香ばしい']],
+  ['B','maru', ['花の香り','果実様','甘い香り']],
+  ['B','nami', ['ハーブ','グリーンな香り','木の香り']],
+  ['B','hoshi',['スパイシー','コーヒー','香り高い']],
+  ['Y','maru', ['なめらか','まろやか','クリーミー']],
+  ['Y','nami', ['しっとり','すっきり','みずみずしい']],
+  ['Y','hoshi',['とろける','ぷちぷち','シャープ']],
+  ['G','juji', ['バランス','きれい','やさしい']],
+  ['G','shi',  ['余韻','奥深い','不思議']],
+];
+
+/* ===== 実寸カード ===== */
+document.getElementById('sheet').innerHTML = CARDS.map(([c,sh,w])=>{
+  const hex=COL[c].hex;
+  return `<div class="card63" style="--c:${hex}">
+    <div class="frame"></div><div class="ring"></div>
+    <div class="edge n"><span class="word">${w[0]}</span></div>
+    <div class="edge e"><span class="word">${w[1]}</span></div>
+    <div class="edge w"><span class="word">${w[2]}</span></div>
+    <div class="edge s"><span class="embwrap">${med(sh,hex,'pr',40)}
+      <span class="colorname">${COL[c].ja}</span>
+      <span class="minilist">${w.join('・')}</span></span></div>
+  </div>`;
+}).join('');
+
+/* ===== アプリ実寸の手牌 ===== */
+const HAND = [   // 赤まる×3(完成) 赤なみ×2 赤ほし | 青まる 青ほし | 黄なみ ＋ 引いた黄なみ
+  ['R','maru',0,'done'], ['R','maru',0,'dup done'], ['R','maru',0,'dup done'],
+  ['R','nami',1,'done'], ['R','nami',1,'dup done'], ['R','hoshi',2,''],
+  ['B','maru',0,'sep'],  ['B','hoshi',2,''],
+  ['Y','nami',1,'sep'],  ['Y','nami',1,'dup'],
+];
+const wordsOf=(c,sh)=>CARDS.find(x=>x[0]===c&&x[1]===sh)[2];
+document.getElementById('apphand').innerHTML = HAND.map(([c,sh,_,cls])=>{
+  const hex=COL[c].hex, w=wordsOf(c,sh);
+  return `<div class="${cls}" style="--c:${hex}"><div class="mini">
+    ${med(sh,hex,'app',23)}<div class="cn">${COL[c].ja}</div>
+    <div class="ws">${w.join('<br>')}</div></div></div>`;
+}).join('');
+
+/* ===== 中央配置版カード ===== */
+function svgLine(inner, s, hex){ return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none"
+  stroke="${hex}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`; }
+const RAW = {
+  maru:`<circle cx="12" cy="12" r="7.2"/>`,
+  nami:`<path d="M6 4.2c-2.6 4 2.6 7.6 0 11.6"/><path d="M12 3.4c-2.6 4.4 2.6 8.4 0 12.8"/><path d="M18 4.2c-2.6 4 2.6 7.6 0 11.6"/>`,
+  kawa:`<path d="M6.4 5.2c-.9 4.2-.9 8.4 0 12.6"/><path d="M12 4c-.5 4.6-.5 9.4 0 14"/><path d="M17.6 5.2c.9 4.2.9 8.4 0 12.6"/>`,
+  hoshi:`<path d="M12 3.2l2.66 6.1 6.64.53-5.04 4.36 1.53 6.48L12 17.5l-5.79 3.17 1.53-6.48L2.7 9.83l6.64-.53z"/>`,
+  juji:`<path d="M12 4v16M4 12h16"/>`,
+  shi:`<rect x="5.2" y="5.2" width="13.6" height="13.6" rx="1.2"/>`,
+};
+function centerCard(c, sh, w, style){
+  const hex=COL[c].hex;
+  const sym = style==='A'
+    ? `<div class="med ctr-med" style="background:${hex}">${SH[sh](90)}</div>`
+    : svgLine(RAW[sh], 100, hex);
+  return `<div class="cardwrap"><div class="card63" style="--c:${hex}">
+    <div class="frame"></div>
+    <div class="ctr">${sym}</div>
+    <div class="edge n"><span class="word">${w[0]}</span></div>
+    <div class="edge e"><span class="word">${w[1]}</span></div>
+    <div class="edge w"><span class="word">${w[2]}</span></div>
+    <div class="band">${COL[c].ja}</div>
+  </div><div class="caplabel">${style==='A'?'A：色丸に白抜き':'B：色の線画のみ'}</div></div>`;
+}
+document.getElementById('centersheet').innerHTML =
+  centerCard('R','maru',['甘い','コク','濃厚'],'A') +
+  centerCard('R','maru',['甘い','コク','濃厚'],'B') +
+  centerCard('B','kawa',['ハーブ','グリーンな香り','木の香り'],'B') +
+  centerCard('Y','hoshi',['とろける','ぷちぷち','シャープ'],'B') +
+  centerCard('G','juji',['バランス','きれい','やさしい'],'B');
+
+/* ===== なみの描き方比較 ===== */
+const NAMI = [['nami','うねり（ゼナー式）','原典に忠実。色丸に入れると湯気に見えやすい'],
+              ['kawa','川（直線寄り三本）','「川」として読める。水の流れ＝すずやかさ'],
+              ['yoko','横波','水面らしいが線が多く23pxで潰れやすい']];
+document.getElementById('namicmp').innerHTML = NAMI.map(([sh,nm,cap])=>
+  `<div class="col"><div class="pair">${med(sh,'#2E5E92','lg',74)}${med(sh,'#2E5E92','app',23)}</div>
+   <div class="symname">${nm}</div><div class="cap">${cap}</div></div>`).join('');
+
+/* ===== ☆の代替比較 ===== */
+const ALT = [['hoshi','☆ ほし','いちばん直感的。ただし評価の星に見えうる'],
+             ['sankaku','▲ とがり','尖りが明快。方向（上向き）が固定される'],
+             ['hishi','◇ ひし','とがりつつ回転対称。落ち着いた印象'],
+             ['kirari','✳ きらり','きらめき。線が細く23pxでは潰れやすいか']];
+document.getElementById('starcmp').innerHTML = ALT.map(([sh,nm,cap])=>
+  `<div class="col"><div class="pair">${med(sh,'#B8860B','lg',74)}${med(sh,'#B8860B','app',23)}</div>
+   <div class="symname">${nm}</div><div class="cap">${cap}</div></div>`).join('');
+</script>
+</body>
+</html>

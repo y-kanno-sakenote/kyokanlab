@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>キョーカンせーの</title>
+<style>
+  :root {
+    --bg: #f7f5f0; --ink: #3a3a3a; --sub: #999;
+    --accent: #3e5c48;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", sans-serif;
+    min-height: 100vh;
+  }
+  #app { max-width: 480px; margin: 0 auto; padding: 16px 16px 48px; }
+  h1 { font-size: 1.5rem; text-align: center; margin: 24px 0 4px; letter-spacing: 0.1em; }
+  .tagline { text-align: center; color: var(--sub); font-size: 0.8rem; margin-bottom: 28px; }
+  h2 { font-size: 1.05rem; margin: 20px 0 8px; }
+  button {
+    display: block; width: 100%; padding: 14px; margin: 10px 0;
+    font-size: 1rem; font-weight: 600; font-family: inherit;
+    border: none; border-radius: 12px; cursor: pointer;
+    background: var(--accent); color: #fff;
+  }
+  button.sub { background: #fff; color: var(--ink); border: 1.5px solid #ccc; }
+  button.mini { display: inline-block; width: auto; padding: 8px 16px; font-size: 0.85rem; margin: 4px 4px 4px 0; }
+  button:disabled { opacity: 0.4; }
+  input {
+    width: 100%; padding: 12px; font-size: 1rem; font-family: inherit;
+    border: 1.5px solid #ccc; border-radius: 10px; margin: 6px 0;
+  }
+  .note { font-size: 0.78rem; color: var(--sub); line-height: 1.7; }
+  .center { text-align: center; }
+  .roomcode { font-size: 2.2rem; letter-spacing: 0.3em; text-align: center; font-weight: 700; margin: 12px 0; }
+
+  /* 手札のカード */
+  .hand { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; }
+  .mini-card {
+    aspect-ratio: 1; border: 2.5px solid var(--c); border-radius: 10px; background: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    cursor: pointer; position: relative;
+  }
+  .mini-card.sel { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .mini-card .sym { display: flex; align-items: center; justify-content: center; height: 32px; }
+  .mini-card .cn { font-size: 0.6rem; color: var(--c); font-weight: 700; }
+  .mini-card .ws { font-size: 0.56rem; color: #888; line-height: 1.45; text-align: center; margin-top: 2px; }
+
+  /* 選択中カードの言葉選び */
+  .word-pick { margin: 14px 0; }
+  .word-btn {
+    background: #fff; color: var(--ink); border: 2px solid var(--c);
+    font-size: 1.05rem; padding: 14px;
+  }
+  .word-btn.sel { background: var(--c); color: #fff; }
+
+  /* 開示カード */
+  .reveal-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 14px 0; }
+  .rcard {
+    border: 3px solid var(--c); border-radius: 12px; background: #fff; padding: 12px 8px 10px;
+    text-align: center; position: relative;
+  }
+  .rcard .who { font-size: 0.75rem; color: var(--sub); margin-bottom: 4px; }
+  .rcard .w { font-size: 1.15rem; font-weight: 700; }
+  .rcard .others { font-size: 0.65rem; color: #bbb; margin-top: 3px; }
+  .rcard .km2 {
+    position: absolute; top: 6px; right: 6px;
+    width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 1.5px solid var(--c);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .rcard .gain { margin-top: 6px; font-size: 1rem; }
+  .badges { font-size: 0.65rem; color: var(--sub); }
+
+  .meter {
+    background: #fff; border-radius: 12px; padding: 12px 16px; margin: 14px 0;
+    font-size: 0.9rem; line-height: 1.8; border: 1.5px solid #e0ddd4;
+  }
+  .totals { background: #fff; border-radius: 12px; padding: 8px 16px; margin: 14px 0; border: 1.5px solid #e0ddd4; }
+  .totals div { display: flex; justify-content: space-between; padding: 7px 0; font-size: 1rem; }
+  .waitlist { font-size: 0.9rem; line-height: 2; }
+  .ok { color: var(--accent); font-weight: 700; }
+  .roundtag { text-align: center; color: var(--sub); font-size: 0.85rem; margin: 8px 0; }
+  .pass-screen { text-align: center; padding: 60px 0; }
+  .pass-screen .nm { font-size: 1.6rem; font-weight: 700; margin: 10px 0 30px; }
+  .hidden { display: none; }
+  .navbtn { position:fixed; top:8px; right:8px; width:auto; margin:0; padding:6px 13px;
+    font-size:.7rem; font-weight:600; background:#fff; color:#888; border:1.5px solid #ddd;
+    border-radius:999px; z-index:50; }
+  .seno-flash {
+    height: 70vh; display: flex; align-items: center; justify-content: center;
+    font-size: 3.2rem; font-weight: 700; letter-spacing: 0.15em;
+    animation: senopop 0.75s ease-out;
+  }
+  @keyframes senopop {
+    0% { transform: scale(0.4); opacity: 0; }
+    40% { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+</style>
+</head>
+<body>
+<button id="navBtn" class="navbtn">ゲームをえらぶ</button>
+<div id="app"></div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+'use strict';
+// ================== カードデータ（じゃんと共通・ジョーカー抜き132枚） ==================
+/* 透視カード（ゼナー）5記号：まる＝ゆたか／なみ＝すずやか／ほし＝際立つ／十字・しかく＝みどり専用 */
+const SYMRAW = {
+  maru:  `<circle cx="12" cy="12" r="7.2"/>`,
+  nami:  `<path d="M6 4.2c-2.6 4 2.6 7.6 0 11.6"/><path d="M12 3.4c-2.6 4.4 2.6 8.4 0 12.8"/><path d="M18 4.2c-2.6 4 2.6 7.6 0 11.6"/>`,
+  hoshi: `<path d="M12 3.2l2.66 6.1 6.64.53-5.04 4.36 1.53 6.48L12 17.5l-5.79 3.17 1.53-6.48L2.7 9.83l6.64-.53z"/>`,
+  juji:  `<path d="M12 4v16M4 12h16"/>`,
+  shi:   `<rect x="5.2" y="5.2" width="13.6" height="13.6" rx="1.2"/>`,
+};
+const symSvg = (key, px, color, w) => `<svg viewBox="0 0 24 24" width="${px}" height="${px}" fill="none"
+  stroke="${color}" stroke-width="${w||2.1}" stroke-linecap="round" stroke-linejoin="round">${SYMRAW[key]}</svg>`;
+const clSym = (i, px, w) => symSvg(CL[i].s, px, CL[i].color, w);
+const clName = i => `${CL[i].cn}の${CL[i].n}`;
+
+const CL = [
+  { s:'maru', n:'まる', color:'#C1443C', cn:'あか', words:['甘い','コク','濃厚'] },
+  { s:'nami', n:'なみ', color:'#C1443C', cn:'あか', words:['酸っぱい','さっぱり','フルーティ'] },
+  { s:'hoshi',n:'ほし', color:'#C1443C', cn:'あか', words:['苦い','うま味','香ばしい'] },
+  { s:'maru', n:'まる', color:'#2E5E92', cn:'あお', words:['花の香り','果実様','甘い香り'] },
+  { s:'nami', n:'なみ', color:'#2E5E92', cn:'あお', words:['ハーブ','グリーンな香り','木の香り'] },
+  { s:'hoshi',n:'ほし', color:'#2E5E92', cn:'あお', words:['スパイシー','コーヒー','香り高い'] },
+  { s:'maru', n:'まる', color:'#B8860B', cn:'き',   words:['なめらか','まろやか','クリーミー'] },
+  { s:'nami', n:'なみ', color:'#B8860B', cn:'き',   words:['しっとり','すっきり','みずみずしい'] },
+  { s:'hoshi',n:'ほし', color:'#B8860B', cn:'き',   words:['とろける','ぷちぷち','シャープ'] },
+  { s:'juji', n:'十字', color:'#3F7D46', cn:'みどり', words:['バランス','きれい','やさしい'] },
+  { s:'shi',  n:'しかく',color:'#3F7D46', cn:'みどり', words:['余韻','奥深い','不思議'] },
+];
+const HAND = 6, ROUNDS = 5;
+const $ = sel => document.querySelector(sel);
+const app = $('#app');
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function buildDeck() {
+  const d = [];
+  CL.forEach((c, i) => { for (let n = 0; n < 12; n++) d.push(i); });
+  for (let i = d.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [d[i], d[j]] = [d[j], d[i]];
+  }
+  return d;
+}
+
+// ================== 得点：合うたび🥒1本（色1・カード1・ピタ1） ==================
+function scorePicks(picks) {
+  // picks: [{cluster, word}] → [{gain, badges:[]}]
+  return picks.map((p, i) => {
+    let color = false, card = false, pita = false;
+    picks.forEach((q, j) => {
+      if (i === j) return;
+      if (CL[q.cluster].color === CL[p.cluster].color) color = true;
+      if (q.cluster === p.cluster) card = true;
+      if (q.cluster === p.cluster && q.word === p.word) pita = true;
+    });
+    const badges = [];
+    if (color) badges.push('色');
+    if (card) badges.push('カード');
+    if (pita) badges.push('ピタ');
+    return { gain: (color?1:0)+(card?1:0)+(pita?1:0), badges };
+  });
+}
+
+// 偶然基準値：いまの手札からランダムに出した場合の卓の🥒合計（モンテカルロ）
+function chanceBaseline(hands) {
+  let total = 0;
+  const N = 400;
+  for (let t = 0; t < N; t++) {
+    const picks = hands.map(h => {
+      const c = h[Math.floor(Math.random() * h.length)];
+      return { cluster: c, word: Math.floor(Math.random() * 3) };
+    });
+    total += scorePicks(picks).reduce((a, r) => a + r.gain, 0);
+  }
+  return total / N;
+}
+
+// ================== 共有ビュー ==================
+function senoFlash(cb) {
+  app.innerHTML = `<div class="seno-flash">せーの！</div>`;
+  setTimeout(cb, 800);
+}
+
+function cardHtml(ci, sel) {
+  const c = CL[ci];
+  return `<div class="mini-card ${sel?'sel':''}" style="--c:${c.color}" data-ci="${ci}">
+    <div class="sym">${clSym(ci,30)}</div><div class="cn">${c.cn}</div>
+    <div class="ws">${c.words.join('<br>')}</div></div>`;
+}
+
+function pickView(state, onDone, onMulligan) {
+  // state: {name, hand, round, sample, canMulligan}
+  let selIdx = null, selWord = null, confirmMull = false;
+  function render() {
+    const c = selIdx !== null ? CL[state.hand[selIdx]] : null;
+    app.innerHTML = `
+      <div class="roundtag">ラウンド ${state.round}/${ROUNDS}｜お題：${esc(state.sample)}</div>
+      <h2>${esc(state.name)} さん、いま一番感じたものは？</h2>
+      <div class="hand">${state.hand.map((ci, i) =>
+        `<div data-i="${i}">${cardHtml(ci, i === selIdx)}</div>`).join('')}</div>
+      ${c ? `<div class="word-pick">
+        <div class="note">「${clName(selIdx!==null?state.hand[selIdx]:0)}」のなかで、どの言葉？</div>
+        ${c.words.map((w, wi) =>
+          `<button class="word-btn ${wi===selWord?'sel':''}" style="--c:${c.color}" data-wi="${wi}">${w}</button>`).join('')}
+      </div>` : `<p class="note">カードを1枚えらんでください</p>`}
+      <button id="go" ${selIdx===null||selWord===null?'disabled':''}>これで出す</button>
+      ${state.canMulligan && onMulligan ? `<button class="sub" id="mull" style="font-size:0.85rem">
+        ${confirmMull ? 'ほんとに引き直す？（もどれません）' : 'ことばがない！（手札ぜんぶ引き直し・1ゲーム1回）'}
+      </button>` : ''}`;
+    app.querySelectorAll('.hand > div').forEach(el =>
+      el.onclick = () => { selIdx = +el.dataset.i; selWord = null; confirmMull = false; render(); });
+    app.querySelectorAll('.word-btn').forEach(el =>
+      el.onclick = () => { selWord = +el.dataset.wi; render(); });
+    $('#go').onclick = () => {
+      if (selIdx === null || selWord === null) return;
+      onDone(selIdx, selWord);
+    };
+    const mull = $('#mull');
+    if (mull) mull.onclick = () => {
+      if (!confirmMull) { confirmMull = true; render(); }
+      else onMulligan();
+    };
+  }
+  render();
+}
+
+function revealHtml(names, picks, results, meter) {
+  const actual = results.reduce((a, r) => a + r.gain, 0);
+  const diff = actual - meter;
+  const verdict = diff >= 3 ? 'かなり通じ合ってる！' : diff >= 1 ? 'ちょっと通じてる' : 'それぞれの感じ方';
+  return `
+    <div class="reveal-grid">${picks.map((p, i) => {
+      const c = CL[p.cluster];
+      return `<div class="rcard" style="--c:${c.color}">
+        <div class="km2">${clSym(p.cluster,18,2.5)}</div>
+        <div class="who">${esc(names[i])}</div>
+        <div class="w">${c.words[p.word]}</div>
+        <div class="others">${c.words.filter((_, wi) => wi !== p.word).join('・')}</div>
+        <div class="gain">${'🥒'.repeat(results[i].gain) || '—'}</div>
+        <div class="badges">${results[i].badges.join('・') || '&nbsp;'}</div>
+      </div>`;
+    }).join('')}</div>
+    <div class="meter">卓の🥒 <b>${actual}本</b>（でたらめに出したら平均 ${meter.toFixed(1)}本）<br>→ ${verdict}</div>`;
+}
+
+function totalsHtml(names, cukes) {
+  const order = names.map((_, i) => i).sort((a, b) => cukes[b] - cukes[a]);
+  return `<div class="totals">${order.map(i =>
+    `<div><span>${esc(names[i])}</span><span>🥒×${cukes[i]}</span></div>`).join('')}</div>`;
+}
+
+function makeLog(mode, sample, names, rounds) {
+  return JSON.stringify({
+    game: 'kyokan-seno', version: 1, mode, sample,
+    played_at: new Date().toISOString(), players: names,
+    rounds: rounds.map((r, i) => ({
+      round: i + 1,
+      picks: r.picks.map((p, pi) => ({
+        player: names[pi], cluster: CL[p.cluster].k,
+        color: CL[p.cluster].cn, word: CL[p.cluster].words[p.word],
+        cukes: r.results[pi].gain,
+      })),
+      table_cukes: r.results.reduce((a, x) => a + x.gain, 0),
+      chance_baseline: +r.meter.toFixed(2),
+    })),
+  }, null, 2);
+}
+
+function finalView(mode, sample, names, cukes, roundLog, onRestart) {
+  app.innerHTML = `
+    <h1>けっか</h1>
+    <div class="roundtag">お題：${esc(sample)}</div>
+    ${totalsHtml(names, cukes)}
+    <div class="meter">${roundLog.map((r, i) => {
+      const a = r.results.reduce((s, x) => s + x.gain, 0);
+      return `R${i+1}：🥒${a}本（偶然 ${r.meter.toFixed(1)}）`;
+    }).join('<br>')}</div>
+    <button class="sub" id="copylog">プレイログをコピー（研究用データ）</button>
+    <div id="logbox" class="hidden"></div>
+    <button id="again">もういちど</button>`;
+  $('#copylog').onclick = () => {
+    const json = makeLog(mode, sample, names, roundLog);
+    const showBox = () => {
+      const box = $('#logbox');
+      box.className = '';
+      box.innerHTML = `<p class="note">コピーできない環境のようです。下を長押し→全選択でコピーしてください。</p>
+        <textarea readonly style="width:100%;height:140px;font-size:11px;border-radius:10px;border:1.5px solid #ccc;padding:8px"></textarea>`;
+      box.querySelector('textarea').value = json;
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(json)
+        .then(() => { $('#copylog').textContent = 'コピーしました ✓'; })
+        .catch(showBox);
+    } else showBox();
+  };
+  $('#again').onclick = onRestart;
+}
+
+// ================== ホットシート（1台回し） ==================
+function hotseat() {
+  app.innerHTML = `
+    <h1>キョーカンせーの</h1>
+    <div class="tagline">1台回しモード</div>
+    <h2>お題（みんなで味わうもの）</h2>
+    <input id="sample" placeholder="例：純米酒A / 実家のみかん">
+    <h2>あそぶ人（2〜8人・1行1人）</h2>
+    <input id="p0" placeholder="なまえ"><input id="p1" placeholder="なまえ">
+    <input id="p2" placeholder="なまえ（任意）"><input id="p3" placeholder="なまえ（任意）">
+    <input id="p4" placeholder="なまえ（任意）"><input id="p5" placeholder="なまえ（任意）">
+    <button id="start">はじめる</button>
+    <button class="sub" id="back">← もどる</button>`;
+  $('#back').onclick = home;
+  $('#start').onclick = () => {
+    const names = [0,1,2,3,4,5].map(i => $('#p' + i).value.trim()).filter(Boolean);
+    if (names.length < 2) { alert('2人以上いれてください'); return; }
+    const sample = $('#sample').value.trim() || '（未記入）';
+    runHotseat(sample, names);
+  };
+}
+
+function runHotseat(sample, names) {
+  const deck = buildDeck();
+  const hands = names.map(() => deck.splice(0, HAND));
+  const cukes = names.map(() => 0);
+  const mullUsed = names.map(() => false);
+  const roundLog = [];
+  let round = 1;
+
+  function playRound() {
+    const picks = [];
+    let i = 0;
+    function next() {
+      if (i >= names.length) {
+        app.innerHTML = `<div class="pass-screen">
+          <div class="note">ぜんいん出そろった！<br>スマホをまんなかに置いて…</div>
+          <button id="seno" style="margin-top:30px">せーの！</button></div>`;
+        $('#seno').onclick = () => senoFlash(doReveal);
+        return;
+      }
+      app.innerHTML = `<div class="pass-screen">
+        <div class="note">スマホをわたしてください</div>
+        <div class="nm">${esc(names[i])} さん</div>
+        <button id="ready">じぶんの番！（手札をひらく）</button></div>`;
+      $('#ready').onclick = showPick;
+      function showPick() {
+        pickView({ name: names[i], hand: hands[i], round, sample,
+                   canMulligan: !mullUsed[i] && deck.length >= HAND },
+          (selIdx, selWord) => {
+            const cluster = hands[i][selIdx];
+            hands[i].splice(selIdx, 1);
+            if (deck.length) hands[i].push(deck.pop());
+            picks[i] = { cluster, word: selWord };
+            i++; next();
+          },
+          () => {  // ことばがない！
+            mullUsed[i] = true;
+            hands[i] = deck.splice(0, HAND);
+            showPick();
+          });
+      }
+    }
+    next();
+
+    function doReveal() {
+      const results = scorePicks(picks);
+      const meter = chanceBaseline(names.map((_, pi) =>
+        [...hands[pi], picks[pi].cluster]));  // 出す前の手札相当で基準値
+      results.forEach((r, pi) => cukes[pi] += r.gain);
+      roundLog.push({ picks, results, meter });
+      app.innerHTML = `
+        <div class="roundtag">ラウンド ${round}/${ROUNDS}　せーの！</div>
+        ${revealHtml(names, picks, results, meter)}
+        ${totalsHtml(names, cukes)}
+        <button id="next">${round < ROUNDS ? 'つぎのラウンドへ' : 'けっかを見る'}</button>`;
+      $('#next').onclick = () => {
+        if (round < ROUNDS) { round++; playRound(); }
+        else finalView('hotseat', sample, names, cukes, roundLog, home);
+      };
+    }
+  }
+  playRound();
+}
+
+// ================== ルームモード（PeerJS） ==================
+const PREFIX = 'kyokan-seno-';
+function roomCode() {
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return [0,0,0,0].map(() => A[Math.floor(Math.random() * A.length)]).join('');
+}
+
+function hostRoom() {
+  app.innerHTML = `
+    <h1>部屋をつくる</h1>
+    <h2>お題</h2><input id="sample" placeholder="例：純米酒A">
+    <h2>あなたのなまえ</h2><input id="myname" placeholder="なまえ">
+    <button id="mk">部屋をひらく</button>
+    <button class="sub" id="back">← もどる</button>`;
+  $('#back').onclick = home;
+  $('#mk').onclick = () => {
+    const myname = $('#myname').value.trim();
+    if (!myname) { alert('なまえをいれてください'); return; }
+    const sample = $('#sample').value.trim() || '（未記入）';
+    startHost(sample, myname);
+  };
+}
+
+function startHost(sample, myname) {
+  const code = roomCode();
+  const peer = new Peer(PREFIX + code);
+  window.__peer = peer;
+  const conns = [];            // 接続順 = プレイヤー1..n（ホストは0）
+  const names = [myname];
+  let deck, hands, cukes, roundLog, round, picks, mullUsed, phase = 'lobby';
+
+  const bc = msg => conns.forEach(c => c.open && c.send(msg));
+
+  function lobby() {
+    app.innerHTML = `
+      <h1>部屋コード</h1>
+      <div class="roomcode">${code}</div>
+      <p class="note center">みんなは「部屋に入る」からこのコードを入力。<br>同じWi-Fiでなくても入れます（要ネット接続）</p>
+      <div class="waitlist center" id="wl"></div>
+      <button id="start" disabled>はじめる（2人以上）</button>
+      <button class="sub" id="back">← やめる</button>`;
+    $('#back').onclick = () => { peer.destroy(); home(); };
+    $('#start').onclick = () => { if (names.length >= 2) beginGame(); };
+    renderLobby();
+  }
+  function renderLobby() {
+    if (phase !== 'lobby') return;
+    const wl = $('#wl');
+    if (wl) wl.innerHTML = names.map(n => `✓ ${esc(n)}`).join('<br>');
+    const st = $('#start');
+    if (st) st.disabled = names.length < 2;
+    bc({ t: 'lobby', names });
+  }
+
+  peer.on('open', lobby);
+  peer.on('error', e => {
+    app.innerHTML = `<h1>接続エラー</h1><p class="note">${esc(e.type)}：ネット接続を確認するか、1台回しモードをどうぞ。</p>
+      <button id="back">もどる</button>`;
+    $('#back').onclick = home;
+  });
+  peer.on('connection', conn => {
+    conn.on('data', msg => {
+      if (msg.t === 'join' && phase === 'lobby') {
+        conns.push(conn); names.push(msg.name || 'ゲスト');
+        renderLobby();
+      } else if (msg.t === 'pick' && phase === 'pick') {
+        const pi = conns.indexOf(conn) + 1;
+        acceptPick(pi, msg.cluster, msg.word);
+      } else if (msg.t === 'mulligan' && phase === 'pick') {
+        const pi = conns.indexOf(conn) + 1;
+        if (pi > 0 && !picks[pi] && !mullUsed[pi] && deck.length >= HAND) {
+          mullUsed[pi] = true;
+          hands[pi] = deck.splice(0, HAND);
+          conn.send({ t: 'hand', hand: hands[pi], round, sample, name: names[pi], canMulligan: false });
+        } else if (pi > 0 && !picks[pi]) {
+          // 引き直し不可（使用済み等）→ 現手札を返して画面を復帰させる
+          conn.send({ t: 'hand', hand: hands[pi], round, sample, name: names[pi], canMulligan: false });
+        }
+      }
+    });
+    conn.on('close', () => { /* 途中離脱は続行（そのラウンドは待たない） */
+      const pi = conns.indexOf(conn) + 1;
+      if (phase === 'pick' && pi > 0 && !picks[pi]) acceptPick(pi, null, null);
+    });
+  });
+
+  function beginGame() {
+    deck = buildDeck();
+    hands = names.map(() => deck.splice(0, HAND));
+    cukes = names.map(() => 0);
+    mullUsed = names.map(() => false);
+    roundLog = []; round = 1;
+    playRound();
+  }
+
+  function playRound() {
+    phase = 'pick'; picks = names.map(() => null);
+    conns.forEach((c, i) => c.open && c.send({ t: 'hand', hand: hands[i + 1], round, sample,
+      name: names[i + 1], canMulligan: !mullUsed[i + 1] && deck.length >= HAND }));
+    hostPick();
+  }
+
+  function hostPick() {
+    pickView({ name: names[0], hand: hands[0], round, sample,
+               canMulligan: !mullUsed[0] && deck.length >= HAND },
+      (selIdx, selWord) => {
+        const cluster = hands[0][selIdx];
+        hands[0].splice(selIdx, 1);
+        acceptPick(0, cluster, selWord, true);
+      },
+      () => {  // ことばがない！
+        mullUsed[0] = true;
+        hands[0] = deck.splice(0, HAND);
+        hostPick();
+      });
+  }
+
+  function waitView() {
+    const waiting = names.filter((_, i) => !picks[i]);
+    app.innerHTML = `
+      <div class="roundtag">ラウンド ${round}/${ROUNDS}</div>
+      <h2 class="center">せーの、を待っています…</h2>
+      <p class="waitlist center">${names.map((n, i) =>
+        picks[i] ? `<span class="ok">✓ ${esc(n)}</span>` : `… ${esc(n)}`).join('<br>')}</p>`;
+    bc({ t: 'wait', done: names.map((_, i) => !!picks[i]), names });
+  }
+
+  function acceptPick(pi, cluster, word, already) {
+    if (picks[pi]) return;
+    if (cluster === null) {  // 離脱者はランダム提出扱い
+      cluster = hands[pi][0]; word = 0;
+    }
+    if (!already && pi > 0) {
+      const idx = hands[pi].indexOf(cluster);
+      if (idx >= 0) hands[pi].splice(idx, 1);
+    }
+    picks[pi] = { cluster, word };
+    if (picks.every(Boolean)) armed();
+    else waitView();
+  }
+
+  function armed() {
+    phase = 'armed';
+    bc({ t: 'armed' });
+    app.innerHTML = `<div class="pass-screen">
+      <div class="note">ぜんいん出そろった！<br>みんなの顔が上がったら…</div>
+      <button id="seno" style="margin-top:30px">せーの！</button></div>`;
+    $('#seno').onclick = doReveal;
+  }
+
+  function doReveal() {
+    phase = 'reveal';
+    const results = scorePicks(picks);
+    const meter = chanceBaseline(names.map((_, pi) => [...hands[pi], picks[pi].cluster]));
+    results.forEach((r, pi) => cukes[pi] += r.gain);
+    roundLog.push({ picks, results, meter });
+    names.forEach((_, pi) => { if (deck.length) hands[pi].push(deck.pop()); });
+    const payload = { t: 'reveal', names, picks, results, meter, cukes, round, last: round >= ROUNDS };
+    bc(payload);
+    senoFlash(() => showRevealHost());
+    function showRevealHost() {
+    app.innerHTML = `
+      <div class="roundtag">ラウンド ${round}/${ROUNDS}　せーの！</div>
+      ${revealHtml(names, picks, results, meter)}
+      ${totalsHtml(names, cukes)}
+      <button id="next">${round < ROUNDS ? 'つぎのラウンドへ' : 'けっかを見る'}</button>`;
+    $('#next').onclick = () => {
+      if (round < ROUNDS) { round++; playRound(); }
+      else {
+        bc({ t: 'final', names, cukes, sample });
+        finalView('room', sample, names, cukes, roundLog, () => { peer.destroy(); home(); });
+      }
+    };
+    }
+  }
+}
+
+function joinRoom() {
+  app.innerHTML = `
+    <h1>部屋に入る</h1>
+    <h2>部屋コード</h2><input id="code" placeholder="例：AB3C" maxlength="4" style="text-transform:uppercase">
+    <h2>あなたのなまえ</h2><input id="myname" placeholder="なまえ">
+    <button id="go">入る</button>
+    <button class="sub" id="back">← もどる</button>`;
+  $('#back').onclick = home;
+  $('#go').onclick = () => {
+    const code = $('#code').value.trim().toUpperCase();
+    const myname = $('#myname').value.trim();
+    if (code.length !== 4 || !myname) { alert('コード4文字となまえをいれてください'); return; }
+    startGuest(code, myname);
+  };
+}
+
+function startGuest(code, myname) {
+  app.innerHTML = `<p class="center note" style="padding-top:80px">接続中…</p>`;
+  const peer = new Peer();
+  window.__peer = peer;
+  let conn;
+  peer.on('open', () => {
+    conn = peer.connect(PREFIX + code, { reliable: true });
+    conn.on('open', () => conn.send({ t: 'join', name: myname }));
+    conn.on('data', msg => {
+      if (msg.t === 'lobby') {
+        app.innerHTML = `<h1>部屋 ${esc(code)}</h1>
+          <p class="waitlist center">${msg.names.map(n => `✓ ${esc(n)}`).join('<br>')}</p>
+          <p class="note center">ホストの「はじめる」を待っています…</p>`;
+      } else if (msg.t === 'hand') {
+        pickView({ name: msg.name, hand: msg.hand, round: msg.round, sample: msg.sample,
+                   canMulligan: !!msg.canMulligan },
+          (selIdx, selWord) => {
+            conn.send({ t: 'pick', cluster: msg.hand[selIdx], word: selWord });
+            app.innerHTML = `<h2 class="center" style="padding-top:80px">出しました。せーの、を待っています…</h2>`;
+          },
+          () => {  // ことばがない！ → ホストに引き直しを依頼
+            conn.send({ t: 'mulligan' });
+            app.innerHTML = `<p class="center note" style="padding-top:80px">ことばがない！<br>引き直しています…</p>`;
+          });
+      } else if (msg.t === 'wait') {
+        // 選択済みならそのまま待機画面
+      } else if (msg.t === 'armed') {
+        app.innerHTML = `<div class="pass-screen">
+          <div class="note">ぜんいん出そろった！</div>
+          <div class="nm">顔を上げて、ホストの<br>「せーの！」を待とう</div></div>`;
+      } else if (msg.t === 'reveal') {
+        senoFlash(() => {
+          app.innerHTML = `
+            <div class="roundtag">ラウンド ${msg.round}/${ROUNDS}　せーの！</div>
+            ${revealHtml(msg.names, msg.picks, msg.results, msg.meter)}
+            ${totalsHtml(msg.names, msg.cukes)}
+            <p class="note center">${msg.last ? 'まもなく結果…' : 'ホストが次のラウンドへ進めます'}</p>`;
+        });
+      } else if (msg.t === 'final') {
+        app.innerHTML = `<h1>けっか</h1><div class="roundtag">お題：${esc(msg.sample)}</div>
+          ${totalsHtml(msg.names, msg.cukes)}
+          <button id="back">おわる</button>`;
+        $('#back').onclick = () => { peer.destroy(); home(); };
+      }
+    });
+    conn.on('close', () => {
+      app.innerHTML = `<h1>切断されました</h1><button id="back">もどる</button>`;
+      $('#back').onclick = home;
+    });
+  });
+  peer.on('error', e => {
+    app.innerHTML = `<h1>入れませんでした</h1><p class="note">コードを確認してください（${esc(e.type)}）</p>
+      <button id="back">もどる</button>`;
+    $('#back').onclick = home;
+  });
+}
+
+// ================== ホーム／ナビ ==================
+let inGame = false;
+function setInGame(v) {
+  inGame = v;
+  const b = $('#navBtn');
+  if (b) b.textContent = v ? 'タイトルへ' : 'ゲームをえらぶ';
+}
+function goHome() {
+  try { if (window.__peer) { window.__peer.destroy(); window.__peer = null; } } catch (e) {}
+  home();
+}
+$('#navBtn').onclick = () => {
+  if (!inGame) { location.href = 'index.html'; return; }
+  if (confirm('ゲームをやめて、タイトルにもどりますか？')) goHome();
+};
+
+function home() {
+  setInGame(false);
+  app.innerHTML = `
+    <h1>キョーカンせーの</h1>
+    <div class="tagline">1枚えらんで、せーの。合うたび🥒1本</div>
+    <button id="hs">この端末1台で遊ぶ</button>
+    <button id="host" class="sub">部屋をつくる（各自のスマホで）</button>
+    <button id="join" class="sub">部屋に入る</button>
+    <p class="note">・全員で同じものを味わってから遊びます<br>
+    ・色が合った🥒 → カードも同じ🥒 → 言葉まで同じ🥒<br>
+    ・5ラウンドの合計で、いちばん通じ合った人を讃えます</p>
+    <p class="note center"><a href="jan.html" style="color:var(--accent)">→ キョーカンじゃん（じっくり版）</a></p>`;
+  $('#hs').onclick = () => { setInGame(true); hotseat(); };
+  $('#host').onclick = () => { setInGame(true); hostRoom(); };
+  $('#join').onclick = () => { setInGame(true); joinRoom(); };
+}
+home();
+</script>
+</body>
+</html>

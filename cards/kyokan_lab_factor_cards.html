@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>キョーカンラボ 要因カード試作データ（A4印刷用）</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", sans-serif;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    background: #fff; color: #333;
+  }
+  .sheet { width: 210mm; height: 296mm; page-break-after: always; position: relative; padding: 22mm 10.5mm; }
+  .sheet-label {
+    position: absolute; top: 9mm; left: 10.5mm; right: 10.5mm;
+    font-size: 9pt; color: #999; display: flex; justify-content: space-between;
+  }
+  .grid { display: grid; grid-template-columns: repeat(3, 63mm); grid-template-rows: repeat(4, 63mm); }
+  .card { width: 63mm; height: 63mm; position: relative; outline: 0.15mm dashed #ccc; overflow: hidden; }
+  .fcard {
+    position: absolute; inset: 2mm; border: 1.1mm solid var(--c); border-radius: 2.5mm;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .cat {
+    margin-top: 3mm; font-size: 7pt; font-weight: 700; letter-spacing: 0.25em;
+    color: #fff; background: var(--c); border-radius: 999px; padding: 1mm 3.5mm;
+  }
+  .fname { margin-top: 5.5mm; font-size: 10mm; font-weight: 700; letter-spacing: 0.1em; color: #333; }
+  .fq {
+    margin: 4mm 4.5mm 0; font-size: 9.5pt; line-height: 1.65; color: #555; text-align: center;
+  }
+  .spare .fcard { border-style: dashed; border-color: #bbb; justify-content: center; }
+  .spare .sp { color: #bbb; font-size: 9pt; letter-spacing: 0.2em; text-align: center; line-height: 2; }
+  .howto { padding: 20mm 18mm; font-size: 10.5pt; line-height: 1.9; }
+  .howto h1 { font-size: 16pt; margin: 0 0 4mm; }
+  .howto h2 { font-size: 11.5pt; margin: 7mm 0 2mm; }
+  .howto table { border-collapse: collapse; font-size: 9.5pt; }
+  .howto td, .howto th { border: 0.2mm solid #bbb; padding: 1.2mm 3mm; }
+</style>
+</head>
+<body>
+
+<section class="sheet howto">
+  <h1>キョーカンラボ 要因カード試作データ</h1>
+  <p>正方形63mm・34枚（モノ9／コト9／トキ9／ヒト・イミ・エモ7）＋予備2枚。<br>
+  ルール本文：Vault <code>09_キョーカンラボ_ルールv2.md</code>（カード内容の正は <code>04_キョーカンラボ_カードリスト.md</code>）</p>
+
+  <h2>印刷のしかた</h2>
+  <p>A4・<strong>倍率100%（「用紙に合わせる」禁止）</strong>・カラー・片面。全4ページ＝この説明＋カード3シート。<br>
+  じゃんの感覚カード（<code>kyokan_jan_cards_v2.pdf</code>）と同判型。裏面が必要なら同PDFのp.14を流用してよい。</p>
+
+  <h2>ラボ一式に必要なもの</h2>
+  <table>
+    <tr><th>コンポーネント</th><th>入手</th></tr>
+    <tr><td>感覚カード136枚（フレーバー提示用）</td><td>じゃんと共用（kyokan_jan_cards_v2.pdf）</td></tr>
+    <tr><td>要因カード34枚</td><td><strong>本データ</strong></td></tr>
+    <tr><td>サンプルカード（番号札×人数分）</td><td>トランプの1〜4等で代用可</td></tr>
+    <tr><td>きゅうりチップ（きゅうり対戦時のみ）</td><td>じゃんPDFのp.13 or コイン代用</td></tr>
+  </table>
+
+  <h2>カテゴリ色</h2>
+  <p>感覚カードの4色（あか・あお・き・みどり）と混ざらないよう、要因カードは
+  <b>モノ=土色／コト=れんが色／トキ=藍鼠色／ヒト・イミ・エモ=葡萄色</b>の別系統。</p>
+</section>
+
+<div id="sheets"></div>
+
+<script>
+const CATS = [
+  { name: 'モノ', color: '#6B5140', cards: [
+    ['素材', '素材そのものの味が際立っている？'],
+    ['濃度', '味付けは濃い（パンチがある）？<br>薄い（繊細）？'],
+    ['個性', '他にはない、尖った個性や癖がある？'],
+    ['香り', '食べる前の香りは強い？弱い？'],
+    ['複雑', 'シンプルな味？<br>何層にも重なる複雑な味？'],
+    ['食感', '歯応えや口溶けに特徴がある？'],
+    ['輪郭', '味がはっきりしている？<br>ふんわり優しい？'],
+    ['表現', 'その特徴を一言で言語化しやすい？'],
+    ['後味', '食べた後、口の中に味が長く残る？'],
+  ]},
+  { name: 'コト', color: '#A85638', cards: [
+    ['手間', '作る工程に手間暇がかかっていそう？'],
+    ['健康', '罪悪感がない、または身体に良さそう？'],
+    ['発見', '食べることで、新しい味や知識を発見できる？'],
+    ['変化', '食べ進めるうちに味や印象が変わる？'],
+    ['一口', '最初の一口に強いインパクトがある？'],
+    ['滞在', '時間をかけて、ゆっくり味わうことに価値がある？'],
+    ['集中', 'スマホを置いて、味と向き合うことに没頭したい？'],
+    ['会話', '「これ何が入ってるの？」と中身について話したくなる？'],
+    ['速度', 'ゆっくり食べる？サッと食べる？'],
+  ]},
+  { name: 'トキ', color: '#4A6070', cards: [
+    ['日時', '◯◯（時間・曜日）に食べたい？'],
+    ['特別', '特別な時に食べたい？'],
+    ['順番', '最初？途中？最後に食べたい？'],
+    ['流行', '初めて食べる味？'],
+    ['鮮度', '出来立てが美味しそう？'],
+    ['場面', '◯◯（場面）で食べたい？'],
+    ['ペア', '◯◯（他の食べ物）と一緒に食べたい？'],
+    ['連帯', '一人で食べたい？みんなで食べたい？'],
+    ['空気', 'フォーマル？カジュアル？'],
+  ]},
+  { name: 'ヒト・イミ・エモ', color: '#7B4B78', cards: [
+    ['好み', '◯◯が好きそう？'],
+    ['慣れ', '初見さん向け？<br>常連や通（ツウ）向け？'],
+    ['相手', '◯◯と食べたい？'],
+    ['記憶', '懐かしい思い出や、個人的な記憶が蘇る？'],
+    ['気分', '今の気分に合ってる？'],
+    ['意味', '味以外で選ぶ理由ある？'],
+    ['共有', '誰かに共有したい？'],
+  ]},
+];
+
+function fcard(cat, name, q) {
+  return `<div class="card" style="--c:${cat.color}">
+    <div class="fcard">
+      <div class="cat">${cat.name}</div>
+      <div class="fname">${name}</div>
+      <div class="fq">${q}</div>
+    </div></div>`;
+}
+const spare = `<div class="card spare" style="--c:#bbb">
+  <div class="fcard"><div class="sp">予備<br>（自由質問など<br>お好みで）</div></div></div>`;
+
+const all = [];
+for (const cat of CATS) for (const [n, q] of cat.cards) all.push(fcard(cat, n, q));
+all.push(spare, spare);
+
+let html = '';
+for (let s = 0; s < 3; s++) {
+  html += `<section class="sheet">
+    <div class="sheet-label"><span>キョーカンラボ｜要因カード ${s*12+1}〜${Math.min((s+1)*12, 36)}</span><span>p.${s+2} / 63mm角</span></div>
+    <div class="grid">${all.slice(s*12, s*12+12).join('')}</div>
+  </section>`;
+}
+document.getElementById('sheets').innerHTML = html;
+</script>
+</body>
+</html>
