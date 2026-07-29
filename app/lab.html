@@ -377,8 +377,8 @@ const PREFIX = 'kyokan-lab-';
 function roomCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return [0,0,0,0].map(()=>A[Math.floor(Math.random()*A.length)]).join(''); }
 
-function startHost(samples, cukeMode, myname){
-  const code = roomCode();
+function startHost(samples, cukeMode, myname, fixedCode){
+  const code = fixedCode || roomCode();
   const peer = new Peer(PREFIX + code);
   window.__peer = peer;
   const P = [{name:myname, conn:null, cukes:0}];
@@ -552,7 +552,7 @@ function startHost(samples, cukeMode, myname){
 }
 
 /* ========== ゲスト ========== */
-function startGuest(code, myname){
+function startGuest(code, myname, retry){
   app.innerHTML = `<p class="center note" style="padding-top:70px">接続中…</p>`;
   const peer = new Peer();
   window.__peer = peer;
@@ -570,7 +570,12 @@ function startGuest(code, myname){
     conn.on('close', ()=>{ app.innerHTML = `<h1>切断されました</h1><button id="b">もどる</button>`;
       $('#b').onclick = home; });
   });
-  peer.on('error', e=>{ app.innerHTML = `<h1>入れませんでした</h1><p class="note">${esc(e.type)}</p>
+  peer.on('error', e=>{
+    if(retry && e.type==='peer-unavailable' && retry > 0){   // テスト台：ホストの起動待ち
+      try{ peer.destroy(); }catch(_){}
+      setTimeout(()=>startGuest(code, myname, retry-1), 1500); return;
+    }
+    app.innerHTML = `<h1>入れませんでした</h1><p class="note">${esc(e.type)}</p>
     <button id="b">もどる</button>`; $('#b').onclick = home; });
 }
 
@@ -638,7 +643,17 @@ function home(){
   $('#host').onclick = () => { setInGame(true); hostRoom(); };
   $('#join').onclick = () => { setInGame(true); joinRoom(); };
 }
-home();
+
+/* テスト台（bench.html）からの自動入室。通常アクセスでは何もしない */
+const Q = new URLSearchParams(location.search);
+if(Q.get('as')==='host'){
+  setInGame(true);
+  startHost((Q.get('samples')||'サンプルA,サンプルB,サンプルC,サンプルD').split(','),
+            Q.get('cuke')==='1', Q.get('name')||'ホスト', Q.get('room'));
+} else if(Q.get('as')==='guest'){
+  setInGame(true);
+  startGuest(Q.get('room'), Q.get('name')||'ゲスト', 12);
+} else home();
 </script>
 </body>
 </html>

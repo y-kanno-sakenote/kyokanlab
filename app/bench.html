@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>テスト台｜キョーカン</title>
+<style>
+  :root { --accent:#3e5c48; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#efece5; color:#3a3a3a; font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans",sans-serif; }
+  header { background:#fff; border-bottom:1.5px solid #e0ddd4; padding:10px 16px;
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap; position:sticky; top:0; z-index:10; }
+  header b { font-size:.95rem; letter-spacing:.06em; }
+  label { font-size:.78rem; color:#777; display:flex; align-items:center; gap:5px; }
+  select, input[type=text] { font-family:inherit; font-size:.85rem; padding:6px 9px;
+    border:1.5px solid #ccc; border-radius:8px; }
+  input[type=text].samples { width:250px; }
+  button { font-family:inherit; font-size:.85rem; font-weight:700; padding:8px 18px; border:none;
+    border-radius:9px; background:var(--accent); color:#fff; cursor:pointer; }
+  button.sub { background:#fff; color:#666; border:1.5px solid #ccc; }
+  .hint { font-size:.72rem; color:#999; padding:8px 16px 0; }
+  .panes { display:flex; gap:12px; padding:12px 16px 20px; overflow-x:auto; align-items:flex-start; }
+  .pane { flex:none; width:392px; background:#fff; border:1.5px solid #ddd8cc; border-radius:14px;
+    overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.05); }
+  .pane .ttl { font-size:.8rem; font-weight:700; padding:8px 12px; background:#f7f5f0;
+    border-bottom:1.5px solid #e6e2d8; display:flex; justify-content:space-between; }
+  .pane .ttl .role { color:var(--accent); font-weight:400; font-size:.72rem; }
+  .pane iframe { display:block; width:392px; height:760px; border:none; }
+  .empty { padding:60px 20px; text-align:center; color:#aaa; font-size:.85rem; line-height:2; }
+</style>
+</head>
+<body>
+<header>
+  <b>テスト台</b>
+  <label>ゲーム
+    <select id="game">
+      <option value="lab">キョーカンラボ</option>
+      <option value="jan">キョーカンじゃん</option>
+    </select></label>
+  <label>人数
+    <select id="n"><option>3</option><option>4</option><option>5</option></select></label>
+  <label id="lsamp">サンプル<input type="text" class="samples" id="samples" value="純米A,純米B,純米C,純米D"></label>
+  <label id="lcuke"><input type="checkbox" id="cuke">きゅうり対戦</label>
+  <button id="go">3人ぶんをひらく</button>
+  <button id="reset" class="sub">やりなおす</button>
+</header>
+<div class="hint" id="hint"></div>
+<div class="panes" id="panes"><div class="empty">「ひらく」を押すと、1人1枚ずつの画面がここに並びます。<br>
+  そのまま自分ひとりで全員ぶんを操作できます。</div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const NAMES = ['ゆう','あき','けん','みお','そら'];
+
+function code(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return [0,0,0,0].map(()=>A[Math.floor(Math.random()*A.length)]).join(''); }
+
+function syncForm(){
+  const lab = $('#game').value==='lab';
+  $('#lsamp').firstChild.textContent = lab ? 'サンプル' : 'お題';
+  $('#samples').value = lab ? '純米A,純米B,純米C,純米D' : '純米酒A';
+  $('#lcuke').style.display = lab ? '' : 'none';
+  $('#go').textContent = $('#n').value + '人ぶんをひらく';
+}
+$('#game').onchange = syncForm;
+$('#n').onchange = syncForm;
+$('#reset').onclick = () => location.reload();
+
+$('#go').onclick = () => {
+  const game = $('#game').value, n = +$('#n').value, room = code();
+  const samples = $('#samples').value.trim();
+  const cuke = $('#cuke').checked ? 1 : 0;
+  const panes = $('#panes');
+  panes.innerHTML = '';
+  $('#hint').textContent = `部屋 ${room}｜左がホスト。ゲストは数秒おくれて入ります（つながらないときは自動で入りなおします）。`
+    + (game==='lab' ? '　ラボはロビーの「はじめる」を押すとGM＝ゆうから始まります。' : '');
+
+  for(let i=0; i<n; i++){
+    const q = game==='lab'
+      ? (i===0 ? `as=host&room=${room}&name=${encodeURIComponent(NAMES[i])}&samples=${encodeURIComponent(samples)}&cuke=${cuke}`
+               : `as=guest&room=${room}&name=${encodeURIComponent(NAMES[i])}`)
+      : (i===0 ? `as=host&room=${room}&name=${encodeURIComponent(NAMES[i])}&sample=${encodeURIComponent(samples)}`
+               : `as=guest&room=${room}&name=${encodeURIComponent(NAMES[i])}`);
+    const pane = document.createElement('div');
+    pane.className = 'pane';
+    pane.innerHTML = `<div class="ttl"><span>${NAMES[i]}</span>
+      <span class="role">${i===0?'ホスト（進行）':'参加者'}</span></div>
+      <iframe data-src="${game}.html?${q}"></iframe>`;
+    panes.appendChild(pane);
+  }
+  // ホストを先に起こしてから、ゲストを順に入れる
+  const frames = [...panes.querySelectorAll('iframe')];
+  frames.forEach((f, i) => setTimeout(()=>{ f.src = f.dataset.src; }, i===0 ? 0 : 2000 + i*700));
+};
+syncForm();
+</script>
+</body>
+</html>

@@ -724,8 +724,8 @@ const PREFIX='kyokan-jan-';
 function roomCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return [0,0,0,0].map(()=>A[Math.floor(Math.random()*A.length)]).join(''); }
 
-function startHost(sample, myname){
-  const code=roomCode();
+function startHost(sample, myname, fixedCode){
+  const code=fixedCode||roomCode();
   const peer=new Peer(PREFIX+code);
   window.__peer=peer;
   const conns=[];                  // index 0 はホスト（conn無し）
@@ -997,7 +997,7 @@ function startHost(sample, myname){
 }
 
 /* ========== ゲスト ========== */
-function startGuest(code, myname){
+function startGuest(code, myname, retry){
   app.innerHTML=`<p class="center note" style="padding-top:70px">接続中…</p>`;
   const peer=new Peer();
   window.__peer=peer;
@@ -1015,7 +1015,12 @@ function startGuest(code, myname){
     conn.on('close',()=>{ app.innerHTML=`<h1>切断されました</h1><button id="b">もどる</button>`;
       $('#b').onclick=home; });
   });
-  peer.on('error', e=>{ app.innerHTML=`<h1>入れませんでした</h1><p class="note">${esc(e.type)}</p>
+  peer.on('error', e=>{
+    if(retry && e.type==='peer-unavailable' && retry>0){        // テスト台：ホストの起動待ち
+      try{ peer.destroy(); }catch(_){}
+      setTimeout(()=>startGuest(code, myname, retry-1), 1500); return;
+    }
+    app.innerHTML=`<h1>入れませんでした</h1><p class="note">${esc(e.type)}</p>
     <button id="b">もどる</button>`; $('#b').onclick=home; });
 }
 
@@ -1064,7 +1069,11 @@ function home(){
       if(c.length!==4||!n){alert('コード4文字となまえを');return;} setInGame(true); startGuest(c,n); };
   };
 }
-home();
+/* テスト台（bench.html）からの自動入室。通常アクセスでは何もしない */
+const Q=new URLSearchParams(location.search);
+if(Q.get('as')==='host'){ setInGame(true); startHost(Q.get('sample')||'（未記入）', Q.get('name')||'ホスト', Q.get('room')); }
+else if(Q.get('as')==='guest'){ setInGame(true); startGuest(Q.get('room'), Q.get('name')||'ゲスト', 12); }
+else home();
 </script>
 </body>
 </html>
