@@ -404,10 +404,15 @@ function freeIdx(hand){
   need.forEach(v=>{ const i=hand.findIndex((c,k)=>c===v&&!used.has(k)); if(i>=0) used.add(i); });
   return hand.map((_,i)=>i).filter(i=>!used.has(i));
 }
-/* 手札から消えたカードが枠に残っていたら掃除 */
-function syncSlots(hand){
+/* 手札から消えたカードが枠に残っていたら掃除。
+   キョーカン等で公開役が増えると枠が減るので、中身のある枠を前に詰めて余った枠は手札に返す
+   （返さないと、消えた枠のカードが手札からも隠れて捨てられなくなる） */
+function syncSlots(hand, nLocked){
   const pool=hand.slice();
   slotCards=slotCards.map(s=>s.filter(c=>{ const k=pool.indexOf(c); if(k<0) return false; pool.splice(k,1); return true; }));
+  const open=Math.max(0, TARGET_SETS-(nLocked||0));
+  slotCards=slotCards.filter(s=>s.length).slice(0, open);
+  while(slotCards.length<TARGET_SETS) slotCards.push([]);
 }
 function manualSlotsHtml(v){
   const rows=[];
@@ -585,8 +590,8 @@ function render(v){
     return;
   }
   if(v.kind==='turn'){
-    syncSlots(v.hand);
     const nLocked=(v.locked||[]).length;
+    syncSlots(v.hand, nLocked);
     const placed=slotCards.slice(0,3-nLocked).filter(s=>slotDone(s,v.base)).length;
     const winNow=nLocked+placed>=TARGET_SETS;
     const free=new Set(freeIdx(v.hand));
@@ -638,7 +643,7 @@ function render(v){
     return;
   }
   if(v.kind==='wait'){
-    syncSlots(v.hand);
+    syncSlots(v.hand, (v.locked||[]).length);
     const free=new Set(freeIdx(v.hand));
     const kb = v.kyokanOffer ? `<div class="kyokan-alert">
         <div class="kbanner">
