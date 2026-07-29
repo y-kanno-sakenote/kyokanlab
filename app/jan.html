@@ -654,8 +654,11 @@ function render(v){
         </div>
         <button id="take">キョーカン！ もらう</button>
         <button id="pass" class="sub">パスする</button>
+        <div class="note center">早押しではありません。かさなったら、捨てた人に近い人がゆうせん</div>
       </div>`
-      : (v.kyokanWait ? `<div class="kyokan-wait">${v.kyokanWait.passed?'パスしました。':''}キョーカンの確認中…</div>` : '');
+      : (v.kyokanWait ? `<div class="kyokan-wait">${
+          v.kyokanWait.claimed ? 'キョーカンを宣言しました。ほかの人の返事をまっています…'
+          : (v.kyokanWait.passed?'パスしました。':'') + 'キョーカンの確認中…'}</div>` : '');
     app.innerHTML = `${bar}${myBase}
       ${v.notice?`<div class="notice">${esc(v.notice)}</div>`:''}
       ${kb}
@@ -736,7 +739,8 @@ function startHost(sample, myname, fixedCode){
   const conns=[];                  // index 0 はホスト（conn無し）
   const P=[{name:myname, conn:null, hand:[], color:null, locked:[], words:null, cukes:0, vote:null}];
   let deck=[], round=1, turn=0, phase='lobby', lastDiscard=null, discardPile=[],
-      kyokanQueue=[], kyokanTimer=null, kyokanWatch=null, winner=null, finalLapLeft=0, curSample=sample;
+      kyokanQueue=[], kyokanResp={}, kyokanTimer=null, kyokanWatch=null,
+      winner=null, finalLapLeft=0, curSample=sample;
 
   const view = (i,v) => {
     try{ if(i===0) render(v); else if(P[i].conn && P[i].conn.open) P[i].conn.send({t:'view', v}); }
@@ -747,11 +751,12 @@ function startHost(sample, myname, fixedCode){
     locked:p.locked.map(s=>({type:s.type, cards:s.cards}))}));
 
   let notice=null;                              // 「○○がキョーカン！」などの一言（1回だけ流す）
+  let personalNotice={};                        // その人にだけ出す一言（キョーカンの取り合いに負けた等）
   function waitView(i){
     const p=P[i];
     return {kind:'wait', bar:bar(), base:p.base, baseWord:p.baseWord, cukes:p.cukes, hand:p.hand,
             sets:allSets(p), players:pubPlayers(), turnName:P[turn].name, me:i,
-            discards:discardPile, locked:p.locked, notice};
+            discards:discardPile, locked:p.locked, notice:personalNotice[i]||notice};
   }
   function pushViews(){
     P.forEach((p,i)=>{
@@ -759,7 +764,7 @@ function startHost(sample, myname, fixedCode){
       if(i===turn && p.pendingTurn) return;      // 手番中の本人は個別送信済み
       view(i, waitView(i));
     });
-    notice=null;
+    notice=null; personalNotice={};
   }
 
   /* --- ロビー --- */
@@ -844,7 +849,7 @@ function startHost(sample, myname, fixedCode){
   }
   function offerKyokan(){
     if(!lastDiscard || !kyokanQueue.length){ phase='play'; return nextTurn(); }   // 念のため
-    phase='kyokan';
+    phase='kyokan'; kyokanResp={};
     const from=P[lastDiscard.from].name;
     P.forEach((p,i)=>{
       const v=waitView(i);
@@ -852,18 +857,59 @@ function startHost(sample, myname, fixedCode){
       else v.kyokanWait={card:lastDiscard.card, from};
       view(i, v);
     });
-    notice=null;
+    notice=null; personalNotice={};
     clearTimeout(kyokanTimer);
-    kyokanTimer=setTimeout(()=>{ if(phase==='kyokan'){ kyokanQueue=[]; phase='play'; nextTurn(); } }, KYOKAN_SEC*1000);
-    clearInterval(kyokanWatch);          // 応答待ちが空になったら必ず進める番人
+    kyokanTimer=setTimeout(()=>{ if(phase==='kyokan') resolveKyokan(); }, KYOKAN_SEC*1000);
+    clearInterval(kyokanWatch);          // 応答待ちが固まったときの番人
     kyokanWatch=setInterval(()=>{
       if(phase!=='kyokan'){ clearInterval(kyokanWatch); return; }
-      if(!kyokanQueue.length){ clearInterval(kyokanWatch); clearTimeout(kyokanTimer); phase='play'; nextTurn(); }
+      if(kyokanQueue.every(q=>kyokanResp[q])) resolveKyokan();
     }, 300);
   }
+  /* 宣言は早押しではない。かさなったら「捨てた人に近い順」＝kyokanQueueの並び順でゆうせん。
+     ただしアガリになるキョーカンは順番より優先（麻雀のロンと同じ扱い） */
+  function wouldWin(q){
+    if(!lastDiscard) return false;
+    return P[q].locked.length
+      + analyze(P[q].hand.concat([lastDiscard.card]), P[q].base).sets.length >= TARGET_SETS;
+  }
+  function kyokanWinner(){
+    const takers=kyokanQueue.filter(q=>kyokanResp[q]==='take');
+    if(!takers.length) return null;
+    return takers.find(wouldWin) ?? takers[0];
+  }
+  function checkKyokan(){
+    if(phase!=='kyokan') return;
+    if(kyokanQueue.every(q=>kyokanResp[q])) return resolveKyokan();
+    const w=kyokanWinner();
+    if(w==null) return;
+    const at=kyokanQueue.indexOf(w), win=wouldWin(w);
+    // まだ返事していない人のうち、いまの宣言をひっくり返せる人がいるあいだだけ待つ。
+    // 手札はホストが全部見えているので、いなければ待たずに即決＝ふつうは間が空かない
+    const canBeat = q => !kyokanResp[q] && (win ? wouldWin(q) : true);
+    if(kyokanQueue.slice(0,at).some(canBeat)) return;                      // 上位（アガリ宣言なら上位のアガリだけ）
+    if(!win && kyokanQueue.slice(at+1).some(q=>!kyokanResp[q]&&wouldWin(q))) return;  // 下位のアガリ
+    resolveKyokan();
+  }
+  function resolveKyokan(){
+    if(phase!=='kyokan') return;
+    clearTimeout(kyokanTimer); clearInterval(kyokanWatch);
+    const w=kyokanWinner();
+    if(w!=null) return grantKyokan(w);
+    phase='play'; kyokanQueue=[]; kyokanResp={}; nextTurn();
+  }
   function onKyokan(i){
-    if(phase!=='kyokan'||!kyokanQueue.includes(i)||!lastDiscard) return;
-    clearTimeout(kyokanTimer); phase='play'; kyokanQueue=[];
+    if(phase!=='kyokan'||!kyokanQueue.includes(i)||kyokanResp[i]||!lastDiscard) return;
+    kyokanResp[i]='take';
+    const v=waitView(i); v.kyokanWait={card:lastDiscard.card, claimed:true};
+    view(i, v);
+    checkKyokan();
+  }
+  function grantKyokan(i){
+    clearTimeout(kyokanTimer); clearInterval(kyokanWatch);
+    phase='play';
+    const lost=kyokanQueue.filter(q=>q!==i && kyokanResp[q]==='take');
+    kyokanQueue=[]; kyokanResp={};
     const q=P[i], card=lastDiscard.card; lastDiscard=null; discardPile.pop();
     q.hand.push(card);
     // 取った札を含む完成役をロック（公開）
@@ -876,6 +922,7 @@ function startHost(sample, myname, fixedCode){
     }
     turn=i;
     notice=`${q.name} がキョーカン！${newSet?`「${newSet.type}」を公開`:''}`;
+    lost.forEach(k=>{ personalNotice[k]=`${q.name} さんが先でした（捨てた人に近い順）`; });
     if(isWin(q)){ return declareWin(i); }
     q.pendingTurn=true;
     view(i,{kind:'turn', bar:bar(), base:q.base, baseWord:q.baseWord, cukes:q.cukes, hand:q.hand, drewFrom:'kyokan',
@@ -883,11 +930,11 @@ function startHost(sample, myname, fixedCode){
     pushViews();
   }
   function onPass(i){
-    if(phase!=='kyokan') return;
-    kyokanQueue=kyokanQueue.filter(q=>q!==i);
+    if(phase!=='kyokan'||!kyokanQueue.includes(i)||kyokanResp[i]) return;
+    kyokanResp[i]='pass';
     const v=waitView(i); v.kyokanWait={card:lastDiscard?lastDiscard.card:null, passed:true};
     view(i, v);
-    if(!kyokanQueue.length){ clearTimeout(kyokanTimer); phase='play'; nextTurn(); }
+    checkKyokan();
   }
   function nextTurn(){
     lastDiscard=lastDiscard||null;
@@ -898,12 +945,16 @@ function startHost(sample, myname, fixedCode){
     turn=(turn+1)%P.length; startTurn();
   }
   function declareWin(i){
+    // 2人目以降のアガリ：最終ラウンドの自分の手番を終えるだけ（役は開示時に数える）。
+    // ここを素通しすると winner と finalLapLeft が上書きされ、最終ラウンドが永久に終わらない
+    if(winner!=null){ P[i].pendingTurn=false; return nextTurn(); }
     winner=i;
     finalLapLeft=P.length-1;
     if(finalLapLeft===0) return toArmed();
     P.forEach((p,j)=>view(j,{kind:'message', text:`${P[i].name} さん、アガリ！`,
       sub:'最終ラウンド：ほかの人があと1手番ずつ'}));
-    setTimeout(()=>{ turn=i; nextTurn(); }, 1400);
+    phase='announce';                       // 発表中は捨て札などを受け付けない（二度押し・遅延対策）
+    setTimeout(()=>{ phase='play'; turn=i; nextTurn(); }, 1400);
   }
 
   /* --- 開示（v5：宣言はベース1枚だけなので、そのまま「せーの」へ） --- */
@@ -983,7 +1034,7 @@ function startHost(sample, myname, fixedCode){
   window.__P = P;                // 検証用
   window.__beginRound = beginRound;  // 検証用
   window.__state = () => ({phase, turn, deck:deck.length, finalLapLeft, winner, ld:!!lastDiscard,
-    kq:kyokanQueue.slice(), hands:P.map(p=>p.hand.length), locked:P.map(p=>p.locked.length)});
+    kq:kyokanQueue.slice(), kr:Object.assign({},kyokanResp), hands:P.map(p=>p.hand.length), locked:P.map(p=>p.locked.length)});
 
   peer.on('open', lobby);
   peer.on('error', e=>{ app.innerHTML=`<h1>接続エラー</h1><p class="note">${esc(e.type)}</p>
