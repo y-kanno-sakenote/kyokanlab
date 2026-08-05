@@ -98,6 +98,12 @@
     40% { transform: scale(1.15); opacity: 1; }
     100% { transform: scale(1); }
   }
+  /* 部屋のQR */
+  .qrbox { background:#fff; border:1.5px solid #e0ddd4; border-radius:14px;
+    padding:14px 14px 10px; margin:14px auto 8px; max-width:250px; text-align:center; }
+  .qrbox svg { width:100%; height:auto; display:block; }
+  .qrnote { font-size:.72rem; color:#999; line-height:1.6; margin-top:9px; }
+  .qrnote b { color:#b0453c; }
 </style>
 </head>
 <body>
@@ -105,6 +111,7 @@
 <div id="app"></div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
 <script>
 'use strict';
 // ================== カードデータ（じゃんと共通・ジョーカー抜き132枚） ==================
@@ -390,6 +397,23 @@ function runHotseat(sample, names) {
 
 // ================== ルームモード（PeerJS） ==================
 const PREFIX = 'kyokan-seno-';
+/* 部屋のQR：いま開いているURLに ?room=コード を付けたものを渡す（読むだけで入れる） */
+function joinUrl(code){ return location.origin + location.pathname + '?room=' + code; }
+function qrHtml(){ return `<div class="qrbox"><div id="qr"></div><div class="qrnote"></div></div>`; }
+function paintQR(code){
+  const box=document.querySelector('#qr'), note=document.querySelector('.qrnote');
+  if(!box) return;
+  // localhost や file:// のURLは他の端末から開けない＝QRにしても無意味なので、その旨を出す
+  const local = location.protocol==='file:' || /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
+  try{
+    const qr=qrcode(0,'M'); qr.addData(joinUrl(code)); qr.make();
+    box.innerHTML=qr.createSvgTag({cellSize:5, margin:1, scalable:true});
+  }catch(e){ box.innerHTML=`<p class="note">QRを出せませんでした</p>`; }
+  if(note) note.innerHTML = local
+    ? 'このQRは <b>この端末の中だけ</b>のURLを指しています。<br>ほかの端末から開けるURLで開き直してください。'
+    : 'スマホのカメラで読むだけで入れます';
+}
+
 function roomCode() {
   const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return [0,0,0,0].map(() => A[Math.floor(Math.random() * A.length)]).join('');
@@ -423,14 +447,16 @@ function startHost(sample, myname) {
 
   function lobby() {
     app.innerHTML = `
-      <h1>部屋コード</h1>
+      <h1>部屋をひらきました</h1>
+      ${qrHtml()}
       <div class="roomcode">${code}</div>
-      <p class="note center">みんなは「部屋に入る」からこのコードを入力。<br>同じWi-Fiでなくても入れます（要ネット接続）</p>
+      <p class="note center">QRが読めないときは「部屋に入る」からこのコードを入力。<br>同じWi-Fiでなくても入れます（要ネット接続）</p>
       <div class="waitlist center" id="wl"></div>
       <button id="start" disabled>はじめる（2人以上）</button>
       <button class="sub" id="back">← やめる</button>`;
     $('#back').onclick = () => { peer.destroy(); home(); };
     $('#start').onclick = () => { if (names.length >= 2) beginGame(); };
+    paintQR(code);
     renderLobby();
   }
   function renderLobby() {
@@ -565,10 +591,11 @@ function startHost(sample, myname) {
   }
 }
 
-function joinRoom() {
+function joinRoom(prefill) {
   app.innerHTML = `
     <h1>部屋に入る</h1>
-    <h2>部屋コード</h2><input id="code" placeholder="例：AB3C" maxlength="4" style="text-transform:uppercase">
+    <h2>部屋コード</h2><input id="code" placeholder="例：AB3C" maxlength="4"
+      value="${prefill?esc(String(prefill).toUpperCase()):''}" style="text-transform:uppercase">
     <h2>あなたのなまえ</h2><input id="myname" placeholder="なまえ">
     <button id="go">入る</button>
     <button class="sub" id="back">← もどる</button>`;
@@ -579,6 +606,7 @@ function joinRoom() {
     if (code.length !== 4 || !myname) { alert('コード4文字となまえをいれてください'); return; }
     startGuest(code, myname);
   };
+  if (prefill) { const n = $('#myname'); if (n) n.focus(); }
 }
 
 function startGuest(code, myname) {
@@ -670,7 +698,11 @@ function home() {
   $('#host').onclick = () => { setInGame(true); hostRoom(); };
   $('#join').onclick = () => { setInGame(true); joinRoom(); };
 }
-home();
+
+/* QRからの入室：?room=コード でコードを埋めた入室画面へ */
+const Q = new URLSearchParams(location.search);
+if (Q.get('room')) { setInGame(true); joinRoom(Q.get('room')); }
+else home();
 </script>
 </body>
 </html>

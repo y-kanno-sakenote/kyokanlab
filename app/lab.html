@@ -100,6 +100,12 @@
   @keyframes senopop { 0%{transform:scale(.4);opacity:0} 40%{transform:scale(1.15);opacity:1} 100%{transform:scale(1)} }
   .waitmsg { text-align:center; padding:26px 0 10px; }
   .waitmsg .m { font-size:1.05rem; font-weight:700; }
+  /* 部屋のQR */
+  .qrbox { background:#fff; border:1.5px solid #e0ddd4; border-radius:14px;
+    padding:14px 14px 10px; margin:14px auto 8px; max-width:250px; text-align:center; }
+  .qrbox svg { width:100%; height:auto; display:block; }
+  .qrnote { font-size:.72rem; color:#999; line-height:1.6; margin-top:9px; }
+  .qrnote b { color:#b0453c; }
 </style>
 </head>
 <body>
@@ -107,6 +113,7 @@
 <div id="app"></div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
 <script>
 'use strict';
 /* ========== 感覚カード（じゃん・せーのと共通） ========== */
@@ -374,6 +381,23 @@ function render(v){
 
 /* ========== ホスト（進行の権威） ========== */
 const PREFIX = 'kyokan-lab-';
+/* 部屋のQR：いま開いているURLに ?room=コード を付けたものを渡す（読むだけで入れる） */
+function joinUrl(code){ return location.origin + location.pathname + '?room=' + code; }
+function qrHtml(){ return `<div class="qrbox"><div id="qr"></div><div class="qrnote"></div></div>`; }
+function paintQR(code){
+  const box=document.querySelector('#qr'), note=document.querySelector('.qrnote');
+  if(!box) return;
+  // localhost や file:// のURLは他の端末から開けない＝QRにしても無意味なので、その旨を出す
+  const local = location.protocol==='file:' || /^(localhost|127\.|0\.0\.0\.0|\[?::1)/.test(location.hostname);
+  try{
+    const qr=qrcode(0,'M'); qr.addData(joinUrl(code)); qr.make();
+    box.innerHTML=qr.createSvgTag({cellSize:5, margin:1, scalable:true});
+  }catch(e){ box.innerHTML=`<p class="note">QRを出せませんでした</p>`; }
+  if(note) note.innerHTML = local
+    ? 'このQRは <b>この端末の中だけ</b>のURLを指しています。<br>ほかの端末から開けるURLで開き直してください。'
+    : 'スマホのカメラで読むだけで入れます';
+}
+
 function roomCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return [0,0,0,0].map(()=>A[Math.floor(Math.random()*A.length)]).join(''); }
 
@@ -401,13 +425,16 @@ function startHost(samples, cukeMode, myname, fixedCode){
 
   /* --- ロビー --- */
   function lobby(){
-    app.innerHTML = `<h1>部屋コード</h1><div class="roomcode">${code}</div>
-      <p class="note center">みんなは「部屋に入る」からこのコードを入力。<br>3人以上ではじめられます。</p>
+    app.innerHTML = `<h1>ラボをひらきました</h1>
+      ${qrHtml()}
+      <div class="roomcode">${code}</div>
+      <p class="note center">QRが読めないときは「ラボに入る」からこのコードを入力。<br>3人以上ではじめられます。</p>
       <div class="waitlist center" id="wl"></div>
       <button id="start" disabled>はじめる</button>
       <button class="sub" id="back">← やめる</button>`;
     $('#back').onclick = () => { peer.destroy(); home(); };
     $('#start').onclick = () => { if(P.length>=3) beginRound(); };
+    paintQR(code);
     refreshLobby();
   }
   function refreshLobby(){
@@ -604,9 +631,10 @@ function hostRoom(){
   };
 }
 
-function joinRoom(){
+function joinRoom(prefill){
   app.innerHTML = `<h1>ラボに入る</h1>
-    <h2>部屋コード</h2><input id="code" placeholder="例：AB3C" maxlength="4" style="text-transform:uppercase">
+    <h2>部屋コード</h2><input id="code" placeholder="例：AB3C" maxlength="4"
+      value="${prefill?esc(String(prefill).toUpperCase()):''}" style="text-transform:uppercase">
     <h2>あなたのなまえ</h2><input id="myname" placeholder="なまえ">
     <button id="go">入る</button>
     <button class="sub" id="back">← もどる</button>`;
@@ -617,6 +645,7 @@ function joinRoom(){
     if(code.length!==4 || !myname){ alert('コード4文字となまえをいれてください'); return; }
     startGuest(code, myname);
   };
+  if(prefill){ const n=$('#myname'); if(n) n.focus(); }
 }
 
 /* ========== ホーム／ナビ ========== */
@@ -653,6 +682,8 @@ if(Q.get('as')==='host'){
 } else if(Q.get('as')==='guest'){
   setInGame(true);
   startGuest(Q.get('room'), Q.get('name')||'ゲスト', 12);
+} else if(Q.get('room')){          // QRから：コードを埋めた入室画面へ
+  setInGame(true); joinRoom(Q.get('room'));
 } else home();
 </script>
 </body>
