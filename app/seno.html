@@ -435,7 +435,7 @@ function hostRoom() {
   };
 }
 
-function startHost(sample, myname) {
+function startHost(sample, myname, tries) {
   const code = roomCode();
   const peer = new Peer(PREFIX + code);
   window.__peer = peer;
@@ -470,6 +470,11 @@ function startHost(sample, myname) {
 
   peer.on('open', lobby);
   peer.on('error', e => {
+    // 部屋コードがほかの卓とかぶった → 別のコードで静かに開き直す
+    if (e.type === 'unavailable-id' && (tries || 0) < 5) {
+      try { peer.destroy(); } catch (_) {}
+      return startHost(sample, myname, (tries || 0) + 1);
+    }
     app.innerHTML = `<h1>接続エラー</h1><p class="note">${esc(e.type)}：ネット接続を確認するか、1台回しモードをどうぞ。</p>
       <button id="back">もどる</button>`;
     $('#back').onclick = home;

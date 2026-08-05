@@ -756,7 +756,7 @@ function paintQR(code){
 function roomCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return [0,0,0,0].map(()=>A[Math.floor(Math.random()*A.length)]).join(''); }
 
-function startHost(sample, myname, fixedCode){
+function startHost(sample, myname, fixedCode, tries){
   const code=fixedCode||roomCode();
   const peer=new Peer(PREFIX+code);
   window.__peer=peer;
@@ -1064,7 +1064,13 @@ function startHost(sample, myname, fixedCode){
     kq:kyokanQueue.slice(), kr:Object.assign({},kyokanResp), hands:P.map(p=>p.hand.length), locked:P.map(p=>p.locked.length)});
 
   peer.on('open', lobby);
-  peer.on('error', e=>{ app.innerHTML=`<h1>接続エラー</h1><p class="note">${esc(e.type)}</p>
+  peer.on('error', e=>{
+    // 部屋コードがほかの卓とかぶった → 別のコードで静かに開き直す
+    if(e.type==='unavailable-id' && !fixedCode && (tries||0)<5){
+      try{ peer.destroy(); }catch(_){}
+      return startHost(sample, myname, null, (tries||0)+1);
+    }
+    app.innerHTML=`<h1>接続エラー</h1><p class="note">${esc(e.type)}</p>
     <button id="b">もどる</button>`; $('#b').onclick=home; });
   peer.on('connection', conn=>{
     conn.on('data', msg=>{
