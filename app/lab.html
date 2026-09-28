@@ -190,6 +190,7 @@ const app = $('#app');
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let sendAction = () => {};
 let cutOff = false;          // ゲストが「切断されました」を出した後は、遅れて届いた画面を描かない
+let drawSeq = 0;             // 画面の通し番号（遅れて描く処理が、新しい画面を上書きしないため）
 
 /* ========== 共通パーツ ========== */
 function barHtml(v){
@@ -232,11 +233,13 @@ function waitHtml(msg, sub){
     ${sub?`<p class="note">${esc(sub)}</p>`:''}</div>`;
 }
 
-function senoFlash(cb){ app.innerHTML = `<div class="seno-flash">せーの！</div>`; setTimeout(()=>{ if(!cutOff) cb(); }, 800); }
+function senoFlash(cb){ const my=++drawSeq; app.innerHTML = `<div class="seno-flash">せーの！</div>`;
+  setTimeout(()=>{ if(!cutOff && my===drawSeq) cb(); }, 800); }   // 0.8秒のあいだに新しい画面が届いていたら、古い結果発表で上書きしない
 
 /* ========== 描画（ホスト・ゲスト共通） ========== */
 function render(v){
   if(!v || cutOff) return;
+  drawSeq++;
   const head = barHtml(v) + boardHtml(v);
 
   if(v.kind==='gmpick'){
@@ -594,13 +597,15 @@ function startHost(samples, cukeMode, myname, fixedCode, tries){
   window.__state = () => ({phase, round, gm, turn, answer, guesses:guesses.slice(),
     qs:board.map(t=>t.qs.length), asked:askedThisTurn.slice(), used:usedFactors.slice(), gone:P.map(p=>!!p.gone)});
 
-  peer.on('open', lobby);
+  let opened=false;
+  peer.on('open', ()=>{ opened=true; lobby(); });
   peer.on('error', e=>{
     // 部屋コードがほかの卓とかぶった → 別のコードで静かに開き直す（まだ誰も入っていないので失うものはない）
     if(e.type==='unavailable-id' && !fixedCode && (tries||0)<5){
       try{ peer.destroy(); }catch(_){}
       return startHost(samples, cukeMode, myname, null, (tries||0)+1);
     }
+    if(opened) return;                      // 部屋を開いた後の一時的なエラー（network 等）では卓の画面を消さない
     app.innerHTML = `<h1>接続エラー</h1><p class="note">${esc(e.type)}</p>
     <button id="b">もどる</button>`; $('#b').onclick = home; });
   peer.on('connection', conn=>{
@@ -640,16 +645,20 @@ function startGuest(code, myname, retry){
   app.innerHTML = `<p class="center note" style="padding-top:70px">接続中…</p>`;
   const peer = new Peer();
   window.__peer = peer;
+  let linked=false;
   peer.on('open', ()=>{
     const conn = peer.connect(PREFIX + code, {reliable:true});
     sendAction = a => conn.send({t:'action', a});
     let seen=0, hb=null;
     const lost=()=>{
-      clearInterval(hb); cutOff=true;
+      clearInterval(hb);
+      if(window.__peer!==peer) return;             // 自分で「タイトルへ」で抜けた → 切断表示は出さない
+      cutOff=true;
       app.innerHTML = `<h1>切断されました</h1><button id="b">もどる</button>`;
       $('#b').onclick = home;
     };
     conn.on('open', ()=>{
+      linked=true;
       conn.send({t:'join', name:myname});
       seen=Date.now();
       hb=setInterval(()=>{
@@ -673,6 +682,7 @@ function startGuest(code, myname, retry){
     conn.on('close', lost);
   });
   peer.on('error', e=>{
+    if(linked) return;          // つながった後の一時的なエラー（network 等）では画面を消さない。本当の切断は生存確認が拾う
     if(retry && e.type==='peer-unavailable' && retry > 0){   // テスト台：ホストの起動待ち
       try{ peer.destroy(); }catch(_){}
       setTimeout(()=>startGuest(code, myname, retry-1), 1500); return;
@@ -733,6 +743,7 @@ $('#navBtn').onclick = () => {
 };
 
 function home(){
+  cutOff = false;
   setInGame(false);
   sendAction = () => {};
   app.innerHTML = `<h1>キョーカンラボ</h1>
