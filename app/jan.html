@@ -736,6 +736,9 @@ function render(v){
 
 /* ========== ホスト（ゲーム進行の権威） ========== */
 const PREFIX='kyokan-jan-';
+/* 生存確認：たがいに HB_MS ごとに合図。HB_LOST_MS 何も届かなければ切断とみなす
+   （タブを閉じた・画面を消した等は PeerJS の close が来ないことがあるため） */
+const HB_MS=2000, HB_LOST_MS=10000;
 /* 部屋のQR：いま開いているURLに ?room=コード を付けたものを渡す（読むだけで入れる） */
 function joinUrl(code){ return location.origin + location.pathname + '?room=' + code; }
 function qrHtml(){ return `<div class="qrbox"><div id="qr"></div><div class="qrnote"></div></div>`; }
@@ -1095,9 +1098,15 @@ function startHost(sample, myname, fixedCode, tries){
     <button id="b">もどる</button>`; $('#b').onclick=home; });
   peer.on('connection', conn=>{
     conn.on('data', msg=>{
+      const me=P.find(p=>p.conn===conn);
+      if(me){
+        if(me.gone){ conn.close(); return; }     // 離脱扱い後に合図が戻っても復帰させない（入り直し不可）
+        me.seen=Date.now();
+      }
+      if(msg.t==='hb') return;
       if(msg.t==='join'&&phase==='lobby'){
         conns.push(conn); P.push({name:msg.name||'ゲスト', conn, hand:[], color:null, locked:[],
-                                  words:null, cukes:0, vote:null});
+                                  words:null, cukes:0, vote:null, seen:Date.now()});
         refreshLobby();
       } else if(msg.t==='join'){
         conn.close();                           // 途中からは入れない（せーのと同じ）→ 相手には「切断されました」
@@ -1107,6 +1116,15 @@ function startHost(sample, myname, fixedCode, tries){
     });
     conn.on('close',()=>{ const i=P.findIndex(p=>p.conn===conn); if(i>0) onLeave(i); });
   });
+  const hb=setInterval(()=>{
+    if(peer.destroyed){ clearInterval(hb); return; }
+    const now=Date.now();
+    P.forEach((p,i)=>{
+      if(i===0||p.gone||!p.conn) return;
+      if(now-(p.seen||now)>HB_LOST_MS){ onLeave(i); try{ p.conn.close(); }catch(_){} return; }
+      try{ if(p.conn.open) p.conn.send({t:'hb'}); }catch(_){}
+    });
+  }, HB_MS);
 }
 
 /* ========== ゲスト ========== */
@@ -1117,16 +1135,31 @@ function startGuest(code, myname, retry){
   peer.on('open',()=>{
     const conn=peer.connect(PREFIX+code,{reliable:true});
     sendAction = a => conn.send({t:'action', a});
-    conn.on('open',()=>conn.send({t:'join', name:myname}));
+    let seen=0, hb=null;
+    const lost=()=>{
+      clearInterval(hb);
+      app.innerHTML=`<h1>切断されました</h1><button id="b">もどる</button>`;
+      $('#b').onclick=home;
+    };
+    conn.on('open',()=>{
+      conn.send({t:'join', name:myname});
+      seen=Date.now();
+      hb=setInterval(()=>{
+        if(peer.destroyed){ clearInterval(hb); return; }
+        if(Date.now()-seen>HB_LOST_MS){ try{ peer.destroy(); }catch(_){} return lost(); }
+        try{ conn.send({t:'hb'}); }catch(_){}
+      }, HB_MS);
+    });
     conn.on('data', msg=>{
+      seen=Date.now();
+      if(msg.t==='hb') return;
       if(msg.t==='lobby'){
         app.innerHTML=`<h1>部屋 ${esc(code)}</h1>
           <p class="waitlist center">${msg.names.map(n=>`✓ ${esc(n)}`).join('<br>')}</p>
           <p class="note center">ホストの「はじめる」を待っています…</p>`;
       } else if(msg.t==='view'){ render(msg.v); }
     });
-    conn.on('close',()=>{ app.innerHTML=`<h1>切断されました</h1><button id="b">もどる</button>`;
-      $('#b').onclick=home; });
+    conn.on('close', lost);
   });
   peer.on('error', e=>{
     if(retry && e.type==='peer-unavailable' && retry>0){        // テスト台：ホストの起動待ち
