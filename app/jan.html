@@ -183,6 +183,12 @@
   .navbtn { position:fixed; top:8px; right:8px; width:auto; margin:0; padding:6px 13px;
     font-size:.7rem; font-weight:600; background:#fff; color:#888; border:1.5px solid #ddd;
     border-radius:999px; z-index:50; }
+  /* 狭い画面：右上に固定した「タイトルへ」が山札・🥒を隠さないよう、ボタンを少し詰めてバーの右をあける */
+  @media (max-width:680px){
+    .navbtn { padding:5px 9px; }
+    .bar { padding-right:76px; gap:4px; }
+    .bar > span:last-child { white-space:nowrap; }
+  }
   /* 部屋のQR */
   .qrbox { background:#fff; border:1.5px solid #e0ddd4; border-radius:14px;
     padding:14px 14px 10px; margin:14px auto 8px; max-width:250px; text-align:center; }
@@ -257,6 +263,8 @@ function classifyHand(hand, base){
 function candSets(st){
   const out=[];
   if(st.x>=1){ const k=Math.min(3,st.x), j=3-k; if(j<=st.j) out.push({t:'まんなか',use:{x:k,j}}); }
+  // キョーカン3枚だけの組は「まんなか」（どの役にもなれる＝得点が最大の役。手で組む枠の判定 slotType と同じ）
+  if(st.j>=3) out.push({t:'まんなか',use:{x:0,j:3}});
   Object.keys(st.g).forEach(key=>{
     const n=st.g[key]; if(n>=1){ const k=Math.min(3,n), j=3-k; if(j<=st.j) out.push({t:'みどり',cl:+key,use:{gn:k,j}}); }
   });
@@ -582,7 +590,7 @@ let cutOff = false;          // ゲストが「切断されました」を出し
 function render(v){
   if(!v || cutOff){ return; }
   const bar = v.bar ? `<div class="bar"><span>ラウンド${v.bar.round}｜${esc(v.bar.sample)}</span>
-    <span>山札${v.bar.deck}　🥒${v.cukes||0}</span></div>` : '';
+    <span>山札${v.bar.deck}${v.cukes!=null?`　🥒${v.cukes}`:''}</span></div>` : '';   // 🥒は手持ちが届く画面（手番・待ち）だけ。結果画面等は下の一覧が正
   const myBase = v.base!=null ? `<div class="baserow mine">
     <span class="basetag">ベース</span>
     <div class="basecard" style="--c:${COL[CL[v.base].col].hex}">
