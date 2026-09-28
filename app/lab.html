@@ -529,12 +529,14 @@ function startHost(samples, cukeMode, myname, fixedCode, tries){
     if(phase!=='submit' || i!==gm) return;
     if(!P.every((_,k)=> k===gm || guesses[k]!==null || P[k].gone)) return;
     phase='reveal';
-    let hits = 0;
-    P.forEach((p,k)=>{ if(k!==gm && guesses[k]===answer){ hits++; if(cukeMode) p.cukes += 1; } });
-    const split = hits>0 && hits<nRes();
+    P.forEach((p,k)=>{ if(k!==gm && guesses[k]===answer && cukeMode) p.cukes += 1; });
+    // 「全員／0人／一部」の判定は、残っている研究員だけで数える（離脱者を外す。全員離脱なら0人的中と同じ）
+    const live = P.filter((p,k)=> k!==gm && !p.gone);
+    const hits = live.filter(p=> guesses[P.indexOf(p)]===answer).length;
+    const split = hits>0 && hits<live.length;
     if(cukeMode && split) P[gm].cukes += 2;
     const verdict = hits===0 ? 'だれも当てられなかった——ズレがいちばんの収穫。'
-      : hits===nRes() ? '全員が的中。GMの言葉が、まっすぐ届いた。'
+      : hits===live.length ? '全員が的中。GMの言葉が、まっすぐ届いた。'
       : `${hits}人が的中。${cukeMode?'GMに🥒2本。':'いい塩梅の手がかりだった。'}`;
     const last = round >= P.length;
     push({kind:'reveal', answer, guesses, verdict, last, flash:true});
