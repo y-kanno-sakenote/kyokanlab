@@ -554,7 +554,7 @@ function yakuBox(){
       <li><b>色そろい</b>　ベースと同じ色を3枚（記号は自由）</li>
       <li><b>記号そろい</b>　ベースと同じ記号を3枚（色は自由）</li>
       <li><b>まんなか</b>　ベースと同じカードを3枚（🥒もう1本）</li>
-      <li><b>みどり</b>　同じみどりを3枚（ベースに関係なく誰でも）</li>
+      <li><b>みどり</b>　同じみどりを3枚（ベースに関係なく）</li>
     </ul>
     <p class="yakunote">キョーカン（ジョーカー）はどの役の代わりにもなる</p></details>`;
 }
@@ -1062,7 +1062,7 @@ function startHost(sample, myname, fixedCode, tries){
     const top = tops.length===1 ? tops[0] : null;   // 同数は誰にも加点しない（番号の小さい人＝ホストに寄せない）
     P.forEach((p,i)=>{ p.cukes += p.roundGain + (i===top?1:0); });
     const voteLine = top!=null ? `「いちばん共感した」→ ${P[top].name} さん（+1🥒）`
-      : tops.length>1 ? '「いちばん共感した」は同数のため加点なし' : '';
+      : tops.length>1 ? '「いちばん共感した」は同数で🥒なし' : '';
     const best=Math.max(...P.map(p=>p.cukes));
     const gameOver = best>=GOAL_CUKES || round>=3;
     const totals=P.map(p=>({name:p.name, cukes:p.cukes, top:p.cukes===best}));
