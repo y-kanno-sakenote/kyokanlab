@@ -738,7 +738,7 @@ function render(v){
 const PREFIX='kyokan-jan-';
 /* 生存確認：たがいに HB_MS ごとに合図。HB_LOST_MS 何も届かなければ切断とみなす
    （タブを閉じた・画面を消した等は PeerJS の close が来ないことがあるため） */
-const HB_MS=2000, HB_LOST_MS=10000;
+const HB_MS=2000, HB_LOST_MS=30000;
 /* 部屋のQR：いま開いているURLに ?room=コード を付けたものを渡す（読むだけで入れる） */
 function joinUrl(code){ return location.origin + location.pathname + '?room=' + code; }
 function qrHtml(){ return `<div class="qrbox"><div id="qr"></div><div class="qrnote"></div></div>`; }
@@ -1100,7 +1100,7 @@ function startHost(sample, myname, fixedCode, tries){
     conn.on('data', msg=>{
       const me=P.find(p=>p.conn===conn);
       if(me){
-        if(me.gone){ conn.close(); return; }     // 離脱扱い後に合図が戻っても復帰させない（入り直し不可）
+        if(me.gone){ try{ conn.send({t:'bye'}); }catch(_){} return; }   // 離脱扱い後に合図が戻っても復帰させない（入り直し不可）→ 本人に「切断されました」
         me.seen=Date.now();
       }
       if(msg.t==='hb') return;
@@ -1121,7 +1121,7 @@ function startHost(sample, myname, fixedCode, tries){
     const now=Date.now();
     P.forEach((p,i)=>{
       if(i===0||p.gone||!p.conn) return;
-      if(now-(p.seen||now)>HB_LOST_MS){ onLeave(i); try{ p.conn.close(); }catch(_){} return; }
+      if(now-(p.seen||now)>HB_LOST_MS){ onLeave(i); try{ p.conn.send({t:'bye'}); }catch(_){} return; }
       try{ if(p.conn.open) p.conn.send({t:'hb'}); }catch(_){}
     });
   }, HB_MS);
@@ -1153,6 +1153,7 @@ function startGuest(code, myname, retry){
     conn.on('data', msg=>{
       seen=Date.now();
       if(msg.t==='hb') return;
+      if(msg.t==='bye'){ try{ peer.destroy(); }catch(_){} return lost(); }
       if(msg.t==='lobby'){
         app.innerHTML=`<h1>部屋 ${esc(code)}</h1>
           <p class="waitlist center">${msg.names.map(n=>`✓ ${esc(n)}`).join('<br>')}</p>
