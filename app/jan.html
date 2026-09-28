@@ -278,22 +278,37 @@ function applyUse(st,c){
   if(c.t==='みどり') n.g[c.cl]-=u.gn;
   return n;
 }
-function planSets(st, depth){
-  if(depth===0) return [];
-  let best=[];
-  candSets(st).forEach(c=>{
-    const rest=planSets(applyUse(st,c), depth-1);
-    if(1+rest.length>best.length) best=[c].concat(rest);
-  });
+/* 組み方ごとの得点（組にかかる分だけ）：役1／まんなか+1（何組でも1回）／ど真ん中+1。
+   ctx.hasMan＝公開済みの組にまんなかがある／ctx.dot＝誰かのベースと同じ（開示時だけ分かる） */
+function planScore(plan, ctx){
+  const man=ctx.hasMan || plan.some(c=>c.t==='まんなか');
+  return plan.length + (man ? 1+(ctx.dot?1:0) : 0);
+}
+/* 候補の比較：アガリ（need組）できるか → 得点 → 組の数 → 先に見つけた順（従来の優先順） */
+function planSets(st, depth, ctx){
+  ctx=ctx||{};
+  let best=null, bk=null;
+  const walk=(st, d, acc)=>{
+    const cs=d>0?candSets(st):[];
+    if(!cs.length){
+      const k=[acc.length>=(ctx.need??depth)?1:0, planScore(acc,ctx), acc.length];
+      if(!bk || k[0]>bk[0] || (k[0]===bk[0]&&(k[1]>bk[1] || (k[1]===bk[1]&&k[2]>bk[2])))){ best=acc; bk=k; }
+      return;
+    }
+    cs.forEach(c=>walk(applyUse(st,c), d-1, acc.concat([c])));
+  };
+  walk(st, depth, []);
   return best;
 }
-/* returns {sets:[{type,cluster,idxs,cards}], used:Set(index)} */
-function analyze(hand, base){
+/* returns {sets:[{type,cluster,idxs,cards}], used:Set(index)}
+   ctx={need:あと何組でアガリ, hasMan, dot}（省略時は need=3・ど真ん中なし） */
+function analyze(hand, base, ctx){
   if(base==null||base===JOKER) return {sets:[], used:new Set()};
   const ix=classifyHand(hand, base);
   const st={x:ix.x.length,a:ix.a.length,s:ix.s.length,j:ix.j.length,g:{}};
   Object.keys(ix.g).forEach(k=>st.g[k]=ix.g[k].length);
-  const plan=planSets(st, TARGET_SETS);
+  ctx=ctx||{};
+  const plan=planSets(st, ctx.need??TARGET_SETS, ctx);
   const pool={x:ix.x.slice(),a:ix.a.slice(),s:ix.s.slice(),j:ix.j.slice(),g:{}};
   Object.keys(ix.g).forEach(k=>pool.g[k]=ix.g[k].slice());
   const used=new Set();
@@ -879,7 +894,11 @@ function startHost(sample, myname, fixedCode, tries){
     }
     return true;
   }
-  function allSets(p){ return p.locked.concat(analyze(p.hand,p.base).sets).slice(0,TARGET_SETS); }
+  /* dot：開示時だけ、誰かのベースと同じか（ど真ん中）を得点比較に入れる。手番中は他人のベースを見ない */
+  function allSets(p, dot){
+    const ctx={need:Math.max(0,TARGET_SETS-p.locked.length), hasMan:p.locked.some(s=>s.type==='まんなか'), dot:!!dot};
+    return p.locked.concat(analyze(p.hand,p.base,ctx).sets).slice(0,TARGET_SETS);
+  }
   function isWin(p){ return allSets(p).length>=TARGET_SETS; }
   function startTurn(){
     if(!deck.length){ return toArmed(); }
@@ -1026,7 +1045,7 @@ function startHost(sample, myname, fixedCode, tries){
   /* --- 開示（v5：宣言はベース1枚だけなので、そのまま「せーの」へ） --- */
   function toArmed(){
     phase='armed';
-    P.forEach(p=>{ p.finalSets=allSets(p); });
+    P.forEach(p=>{ p.finalSets=allSets(p, P.some(q=>q!==p&&q.base===p.base)); });
     P.forEach((p,j)=>view(j,{kind:'armed', isHost:j===0}));
   }
   function onSeno(){
