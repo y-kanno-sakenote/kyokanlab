@@ -558,8 +558,9 @@ function discardsHtml(discards, players){
 
 /* ========== 画面描画（ホスト・ゲスト共通） ========== */
 let sendAction = () => {};   // ゲスト時はconn.send、ホスト時はローカル適用
+let cutOff = false;          // ゲストが「切断されました」を出した後は、遅れて届いた画面を描かない
 function render(v){
-  if(!v){ return; }
+  if(!v || cutOff){ return; }
   const bar = v.bar ? `<div class="bar"><span>ラウンド${v.bar.round}｜${esc(v.bar.sample)}</span>
     <span>山札${v.bar.deck}　🥒${v.cukes||0}</span></div>` : '';
   const myBase = v.base!=null ? `<div class="baserow mine">
@@ -760,6 +761,7 @@ function roomCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return [0,0,0,0].map(()=>A[Math.floor(Math.random()*A.length)]).join(''); }
 
 function startHost(sample, myname, fixedCode, tries){
+  cutOff=false;
   const code=fixedCode||roomCode();
   const peer=new Peer(PREFIX+code);
   window.__peer=peer;
@@ -1129,6 +1131,7 @@ function startHost(sample, myname, fixedCode, tries){
 
 /* ========== ゲスト ========== */
 function startGuest(code, myname, retry){
+  cutOff=false;
   app.innerHTML=`<p class="center note" style="padding-top:70px">接続中…</p>`;
   const peer=new Peer();
   window.__peer=peer;
@@ -1137,7 +1140,7 @@ function startGuest(code, myname, retry){
     sendAction = a => conn.send({t:'action', a});
     let seen=0, hb=null;
     const lost=()=>{
-      clearInterval(hb);
+      clearInterval(hb); cutOff=true;
       app.innerHTML=`<h1>切断されました</h1><button id="b">もどる</button>`;
       $('#b').onclick=home;
     };
@@ -1152,6 +1155,7 @@ function startGuest(code, myname, retry){
       }, HB_MS);
     });
     conn.on('data', msg=>{
+      if(cutOff) return;                         // 切断表示の後に届いたもの（止まっている間に溜まった画面など）は捨てる
       seen=Date.now();
       if(msg.t==='hb') return;
       if(msg.t==='bye'){ try{ peer.destroy(); }catch(_){} return lost(); }
