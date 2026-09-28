@@ -486,7 +486,7 @@ function startHost(sample, myname, tries) {
       try { peer.destroy(); } catch (_) {}
       return startHost(sample, myname, (tries || 0) + 1);
     }
-    if (opened) return;              // 部屋を開いた後の一時的なエラー（network 等）では卓の画面を消さない
+    if (opened && phase !== 'lobby') return;   // ゲームが始まった後の一時的なエラー（network 等）では卓の画面を消さない。ロビーでは出す（部屋を作り直せるように）
     app.innerHTML = `<h1>接続エラー</h1><p class="note">${esc(e.type)}：ネット接続を確認するか、1台回しモードをどうぞ。</p>
       <button id="back">もどる</button>`;
     $('#back').onclick = home;
