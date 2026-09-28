@@ -1089,13 +1089,15 @@ function startHost(sample, myname, fixedCode, tries){
   window.__state = () => ({phase, turn, deck:deck.length, finalLapLeft, winner, ld:!!lastDiscard,
     kq:kyokanQueue.slice(), kr:Object.assign({},kyokanResp), hands:P.map(p=>p.hand.length), locked:P.map(p=>p.locked.length)});
 
-  peer.on('open', lobby);
+  let opened=false;
+  peer.on('open', ()=>{ opened=true; lobby(); });
   peer.on('error', e=>{
     // 部屋コードがほかの卓とかぶった → 別のコードで静かに開き直す
     if(e.type==='unavailable-id' && !fixedCode && (tries||0)<5){
       try{ peer.destroy(); }catch(_){}
       return startHost(sample, myname, null, (tries||0)+1);
     }
+    if(opened) return;                      // 部屋を開いた後の一時的なエラー（network 等）では卓の画面を消さない
     app.innerHTML=`<h1>接続エラー</h1><p class="note">${esc(e.type)}</p>
     <button id="b">もどる</button>`; $('#b').onclick=home; });
   peer.on('connection', conn=>{
@@ -1135,16 +1137,20 @@ function startGuest(code, myname, retry){
   app.innerHTML=`<p class="center note" style="padding-top:70px">接続中…</p>`;
   const peer=new Peer();
   window.__peer=peer;
+  let linked=false;
   peer.on('open',()=>{
     const conn=peer.connect(PREFIX+code,{reliable:true});
     sendAction = a => conn.send({t:'action', a});
     let seen=0, hb=null;
     const lost=()=>{
-      clearInterval(hb); cutOff=true;
+      clearInterval(hb);
+      if(window.__peer!==peer) return;             // 自分で「タイトルへ」で抜けた → 切断表示は出さない
+      cutOff=true;
       app.innerHTML=`<h1>切断されました</h1><button id="b">もどる</button>`;
       $('#b').onclick=home;
     };
     conn.on('open',()=>{
+      linked=true;
       conn.send({t:'join', name:myname});
       seen=Date.now();
       hb=setInterval(()=>{
@@ -1168,6 +1174,7 @@ function startGuest(code, myname, retry){
     conn.on('close', lost);
   });
   peer.on('error', e=>{
+    if(linked) return;          // つながった後の一時的なエラー（network 等）では画面を消さない。本当の切断は生存確認が拾う
     if(retry && e.type==='peer-unavailable' && retry>0){        // テスト台：ホストの起動待ち
       try{ peer.destroy(); }catch(_){}
       setTimeout(()=>startGuest(code, myname, retry-1), 1500); return;
@@ -1193,6 +1200,7 @@ $('#navBtn').onclick=()=>{
 };
 
 function home(){
+  cutOff=false;
   setInGame(false);
   app.innerHTML=`<h1>キョーカンじゃん</h1>
     <div class="tagline">ベース1枚が色と記号の十字を引く。3組そろえてアガリ（v5）</div>
