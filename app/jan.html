@@ -52,6 +52,9 @@
   .fieldbox > summary::before { content:'▸ '; }
   .fieldbox[open] > summary::before { content:'▾ '; }
   .fieldbox .field { margin:0 9px 9px; }
+  .yakulist { list-style:none; margin:0 13px 6px; padding:0; font-size:.76rem; line-height:1.6; color:#666; }
+  .yakulist li { margin:3px 0; }
+  .yakunote { margin:0 13px 10px; font-size:.7rem; color:#999; line-height:1.6; }
   /* 3枠（自分で役を組む）：1枠＝1行、中身はカードのまま */
   .mslots { display:flex; flex-direction:column; gap:6px; margin:10px 0 6px; }
   .mslot { display:flex; align-items:center; gap:8px; min-height:68px; padding:5px 9px;
@@ -539,8 +542,25 @@ function fieldBox(v){
     ${players}${discardsHtml(v.discards, v.players)}</details>`;
 }
 function bindFieldBox(){
-  const d=document.querySelector('.fieldbox');
+  const d=document.querySelector('.fieldbox:not(.yakubox)');
   if(d) d.addEventListener('toggle',()=>{ fieldOpen=d.open; });
+}
+/* 役のつくり方（初見向け・畳んでおく）。Vault のルールv5「つくれる役」の要約 */
+let yakuOpen=false;
+function yakuBox(){
+  return `<details class="fieldbox yakubox" ${yakuOpen?'open':''}>
+    <summary>役のつくり方（3枚1組・3組でアガリ）</summary>
+    <ul class="yakulist">
+      <li><b>色そろい</b>　ベースと同じ色を3枚（記号は自由）</li>
+      <li><b>記号そろい</b>　ベースと同じ記号を3枚（色は自由）</li>
+      <li><b>まんなか</b>　ベースと同じカードを3枚（🥒もう1本）</li>
+      <li><b>みどり</b>　同じみどりを3枚（ベースに関係なく誰でも）</li>
+    </ul>
+    <p class="yakunote">キョーカン（ジョーカー）はどの役の代わりにもなる</p></details>`;
+}
+function bindYakuBox(){
+  const d=document.querySelector('.yakubox');
+  if(d) d.addEventListener('toggle',()=>{ yakuOpen=d.open; });
 }
 
 /* 捨て札の履歴（河）をプレイヤー別に紋章で */
@@ -585,7 +605,9 @@ function render(v){
           <div class="note">この1枚を、どの言葉として感じた？</div>
           ${CL[c].words.map((w,wi)=>`<button class="word-btn ${word===wi?'sel':''}"
             style="--c:${COL[CL[c].col].hex}" data-w="${wi}">${w}</button>`).join('')}</div>`:''}
-        <button id="go" ${ok?'':'disabled'}>${ok?`「${CL[c].words[word]}」でベースにする`:'カードと言葉をえらぶ'}</button>`;
+        <button id="go" ${ok?'':'disabled'}>${ok?`「${CL[c].words[word]}」でベースにする`:'カードと言葉をえらぶ'}</button>
+        ${yakuBox()}`;
+      bindYakuBox();
       app.querySelectorAll('.hand > div').forEach(el=>el.onclick=()=>{
         const i=+el.dataset.i, cc=v.hand[i];
         if(cc===JOKER||isGreen(cc)) return;
@@ -616,7 +638,7 @@ function render(v){
       ${handGrid(v.hand, v.base, null, dIdx, free)}
       ${winNow?`<button id="win" class="big">🎉 アガリ！</button>`:''}
       <button id="go" class="sub" disabled>これを捨てる</button>
-      ${fieldBox(v)}`;
+      ${fieldBox(v)}${yakuBox()}`;
     let sel=null;
     const clearSel=()=>{ sel=null;
       app.querySelectorAll('.card').forEach(c=>c.classList.remove('sel'));
@@ -644,7 +666,7 @@ function render(v){
       const n=+el.dataset.slot, ci=+el.dataset.ci;
       slotCards[n]=slotCards[n].filter((_,k)=>k!==ci); render(v);
     });
-    enableDragDrop(v); bindFieldBox();
+    enableDragDrop(v); bindFieldBox(); bindYakuBox();
     $('#autosort').onclick=()=>{ handPref=null; render(v); };
     $('#go').onclick=()=>{ if(sel!=null) sendAction({kind:'discard', idx:sel}); };
     if(winNow) $('#win').onclick=()=>sendAction({kind:'win', slots:slotCards.slice(0,3-nLocked)});
@@ -673,8 +695,8 @@ function render(v){
       ${manualSlotsHtml(v)}
       <div class="handbar"><span class="tiny">${esc(v.turnName)} さんの番です…</span></div>
       ${handGrid(v.hand, v.base, null, null, free)}
-      ${fieldBox(v)}`;
-    bindFieldBox();
+      ${fieldBox(v)}${yakuBox()}`;
+    bindFieldBox(); bindYakuBox();
     if(v.kyokanOffer){
       let left=KYOKAN_SEC;
       const iv=setInterval(()=>{ left--; const el=$('#tm');
@@ -1035,9 +1057,12 @@ function startHost(sample, myname, fixedCode, tries){
   function tally(board){
     phase='score';
     const cnt={}; P.forEach(p=>{ if(p.vote!=null) cnt[p.vote]=(cnt[p.vote]||0)+1; });
-    let top=null, max=0; Object.entries(cnt).forEach(([k,v])=>{ if(v>max){max=v; top=+k;} });
+    const max=Math.max(0,...Object.values(cnt));
+    const tops=Object.keys(cnt).filter(k=>cnt[k]===max).map(Number);
+    const top = tops.length===1 ? tops[0] : null;   // 同数は誰にも加点しない（番号の小さい人＝ホストに寄せない）
     P.forEach((p,i)=>{ p.cukes += p.roundGain + (i===top?1:0); });
-    const voteLine = top!=null ? `「いちばん共感した」→ ${P[top].name} さん（+1🥒）` : '';
+    const voteLine = top!=null ? `「いちばん共感した」→ ${P[top].name} さん（+1🥒）`
+      : tops.length>1 ? '「いちばん共感した」は同数のため加点なし' : '';
     const best=Math.max(...P.map(p=>p.cukes));
     const gameOver = best>=GOAL_CUKES || round>=3;
     const totals=P.map(p=>({name:p.name, cukes:p.cukes, top:p.cukes===best}));
