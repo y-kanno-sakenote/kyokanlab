@@ -192,7 +192,7 @@ function chanceBaseline(hands) {
 // ================== 共有ビュー ==================
 function senoFlash(cb) {
   app.innerHTML = `<div class="seno-flash">せーの！</div>`;
-  setTimeout(cb, 800);
+  setTimeout(() => { if (!cutOff) cb(); }, 800);
 }
 
 function cardHtml(ci, sel) {
@@ -397,6 +397,10 @@ function runHotseat(sample, names) {
 
 // ================== ルームモード（PeerJS） ==================
 const PREFIX = 'kyokan-seno-';
+/* 生存確認（じゃんと同じ）：たがいに HB_MS ごとに合図。HB_LOST_MS 何も届かなければ切断とみなす
+   （タブを閉じた・画面を消した等は PeerJS の close が来ないことがあるため） */
+const HB_MS = 2000, HB_LOST_MS = 30000;
+let cutOff = false;          // ゲストが「切断されました」を出した後は、遅れて届いた画面を描かない
 /* 部屋のQR：いま開いているURLに ?room=コード を付けたものを渡す（読むだけで入れる） */
 function joinUrl(code){ return location.origin + location.pathname + '?room=' + code; }
 function qrHtml(){ return `<div class="qrbox"><div id="qr"></div><div class="qrnote"></div></div>`; }
@@ -436,11 +440,13 @@ function hostRoom() {
 }
 
 function startHost(sample, myname, tries) {
+  cutOff = false;
   const code = roomCode();
   const peer = new Peer(PREFIX + code);
   window.__peer = peer;
   const conns = [];            // 接続順 = プレイヤー1..n（ホストは0）
   const names = [myname];
+  const gone = [false], seen = [0];   // 離脱扱い・最後に合図が届いた時刻（プレイヤー番号ごと）
   let deck, hands, cukes, roundLog, round, picks, mullUsed, phase = 'lobby';
 
   const bc = msg => conns.forEach(c => c.open && c.send(msg));
@@ -481,9 +487,18 @@ function startHost(sample, myname, tries) {
   });
   peer.on('connection', conn => {
     conn.on('data', msg => {
+      const me = conns.indexOf(conn) + 1;
+      if (me > 0) {
+        if (gone[me]) { try { conn.send({ t: 'bye' }); } catch (_) {} return; }  // 離脱扱い後は復帰させない → 本人に「切断されました」
+        seen[me] = Date.now();
+      }
+      if (msg.t === 'hb') return;
       if (msg.t === 'join' && phase === 'lobby') {
         conns.push(conn); names.push(msg.name || 'ゲスト');
+        gone.push(false); seen.push(Date.now());
         renderLobby();
+      } else if (msg.t === 'join') {
+        conn.close();                 // 途中からは入れない → 相手には「切断されました」
       } else if (msg.t === 'pick' && phase === 'pick') {
         const pi = conns.indexOf(conn) + 1;
         acceptPick(pi, msg.cluster, msg.word);
@@ -499,11 +514,25 @@ function startHost(sample, myname, tries) {
         }
       }
     });
-    conn.on('close', () => { /* 途中離脱は続行（そのラウンドは待たない） */
-      const pi = conns.indexOf(conn) + 1;
-      if (phase === 'pick' && pi > 0 && !picks[pi]) acceptPick(pi, null, null);
-    });
+    conn.on('close', () => { const pi = conns.indexOf(conn) + 1; if (pi > 0) onLeave(pi); });
   });
+  /* 途中離脱は続行（そのラウンドも次のラウンドも待たない） */
+  function onLeave(pi) {
+    if (gone[pi]) return;
+    gone[pi] = true;
+    if (phase === 'pick' && !picks[pi]) acceptPick(pi, null, null);
+  }
+  const hb = setInterval(() => {
+    if (peer.destroyed) { clearInterval(hb); return; }
+    const now = Date.now();
+    conns.forEach((c, k) => {
+      const pi = k + 1;
+      if (gone[pi]) return;
+      if (now - seen[pi] > HB_LOST_MS) { onLeave(pi); try { c.send({ t: 'bye' }); } catch (_) {} return; }
+      try { if (c.open) c.send({ t: 'hb' }); } catch (_) {}
+    });
+  }, HB_MS);
+  window.__seno = () => ({ phase, round, picks: picks ? picks.map(Boolean) : [], gone: gone.slice(), cukes });   // 検証用
 
   function beginGame() {
     deck = buildDeck();
@@ -518,6 +547,7 @@ function startHost(sample, myname, tries) {
     phase = 'pick'; picks = names.map(() => null);
     conns.forEach((c, i) => c.open && c.send({ t: 'hand', hand: hands[i + 1], round, sample,
       name: names[i + 1], canMulligan: !mullUsed[i + 1] && deck.length >= HAND }));
+    names.forEach((_, pi) => { if (gone[pi]) acceptPick(pi, null, null); });   // 離脱者のぶんは先に自動で出す
     hostPick();
   }
 
@@ -537,13 +567,13 @@ function startHost(sample, myname, tries) {
   }
 
   function waitView() {
-    const waiting = names.filter((_, i) => !picks[i]);
+    bc({ t: 'wait', done: names.map((_, i) => !!picks[i]), names });
+    if (!picks[0]) return;       // ホストがまだ選んでいる最中は、その画面を消さない（先に出したゲストや離脱者の自動提出で上書きしない）
     app.innerHTML = `
       <div class="roundtag">ラウンド ${round}/${ROUNDS}</div>
       <h2 class="center">せーの、を待っています…</h2>
       <p class="waitlist center">${names.map((n, i) =>
         picks[i] ? `<span class="ok">✓ ${esc(n)}</span>` : `… ${esc(n)}`).join('<br>')}</p>`;
-    bc({ t: 'wait', done: names.map((_, i) => !!picks[i]), names });
   }
 
   function acceptPick(pi, cluster, word, already) {
@@ -615,14 +645,34 @@ function joinRoom(prefill) {
 }
 
 function startGuest(code, myname) {
+  cutOff = false;
   app.innerHTML = `<p class="center note" style="padding-top:80px">接続中…</p>`;
   const peer = new Peer();
   window.__peer = peer;
   let conn;
   peer.on('open', () => {
     conn = peer.connect(PREFIX + code, { reliable: true });
-    conn.on('open', () => conn.send({ t: 'join', name: myname }));
+    let seen = 0, hb = null;
+    const lost = () => {
+      clearInterval(hb); cutOff = true;
+      app.innerHTML = `<h1>切断されました</h1><button id="back">もどる</button>`;
+      $('#back').onclick = home;
+    };
+    conn.on('open', () => {
+      conn.send({ t: 'join', name: myname });
+      seen = Date.now();
+      hb = setInterval(() => {
+        if (window.__peer !== peer) { clearInterval(hb); return; }      // 自分で「タイトルへ」等で抜けた
+        // 通信が既に切れている（画面オフから戻った等）か、ホストからの合図が途絶えた → 切断
+        if (peer.destroyed || !conn.open || Date.now() - seen > HB_LOST_MS) { try { peer.destroy(); } catch (_) {} return lost(); }
+        try { conn.send({ t: 'hb' }); } catch (_) { try { peer.destroy(); } catch (_) {} return lost(); }
+      }, HB_MS);
+    });
     conn.on('data', msg => {
+      if (cutOff) return;                          // 切断表示の後に届いたもの（止まっている間に溜まった画面など）は捨てる
+      seen = Date.now();
+      if (msg.t === 'hb') return;
+      if (msg.t === 'bye') { try { peer.destroy(); } catch (_) {} return lost(); }
       if (msg.t === 'lobby') {
         app.innerHTML = `<h1>部屋 ${esc(code)}</h1>
           <p class="waitlist center">${msg.names.map(n => `✓ ${esc(n)}`).join('<br>')}</p>
@@ -659,10 +709,7 @@ function startGuest(code, myname) {
         $('#back').onclick = () => { peer.destroy(); home(); };
       }
     });
-    conn.on('close', () => {
-      app.innerHTML = `<h1>切断されました</h1><button id="back">もどる</button>`;
-      $('#back').onclick = home;
-    });
+    conn.on('close', lost);
   });
   peer.on('error', e => {
     app.innerHTML = `<h1>入れませんでした</h1><p class="note">コードを確認してください（${esc(e.type)}）</p>
