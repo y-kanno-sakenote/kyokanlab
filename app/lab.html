@@ -189,6 +189,7 @@ const $ = s => document.querySelector(s);
 const app = $('#app');
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let sendAction = () => {};
+let cutOff = false;          // ゲストが「切断されました」を出した後は、遅れて届いた画面を描かない
 
 /* ========== 共通パーツ ========== */
 function barHtml(v){
@@ -231,10 +232,11 @@ function waitHtml(msg, sub){
     ${sub?`<p class="note">${esc(sub)}</p>`:''}</div>`;
 }
 
-function senoFlash(cb){ app.innerHTML = `<div class="seno-flash">せーの！</div>`; setTimeout(cb, 800); }
+function senoFlash(cb){ app.innerHTML = `<div class="seno-flash">せーの！</div>`; setTimeout(()=>{ if(!cutOff) cb(); }, 800); }
 
 /* ========== 描画（ホスト・ゲスト共通） ========== */
 function render(v){
+  if(!v || cutOff) return;
   const head = barHtml(v) + boardHtml(v);
 
   if(v.kind==='gmpick'){
@@ -381,6 +383,9 @@ function render(v){
 
 /* ========== ホスト（進行の権威） ========== */
 const PREFIX = 'kyokan-lab-';
+/* 生存確認（じゃんと同じ）：たがいに HB_MS ごとに合図。HB_LOST_MS 何も届かなければ切断とみなす
+   （タブを閉じた・画面を消した等は PeerJS の close が来ないことがあるため） */
+const HB_MS=2000, HB_LOST_MS=30000;
 /* 部屋のQR：いま開いているURLに ?room=コード を付けたものを渡す（読むだけで入れる） */
 function joinUrl(code){ return location.origin + location.pathname + '?room=' + code; }
 function qrHtml(){ return `<div class="qrbox"><div id="qr"></div><div class="qrnote"></div></div>`; }
@@ -402,6 +407,7 @@ function roomCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return [0,0,0,0].map(()=>A[Math.floor(Math.random()*A.length)]).join(''); }
 
 function startHost(samples, cukeMode, myname, fixedCode, tries){
+  cutOff = false;
   const code = fixedCode || roomCode();
   const peer = new Peer(PREFIX + code);
   window.__peer = peer;
@@ -421,6 +427,7 @@ function startHost(samples, cukeMode, myname, fixedCode, tries){
   function push(extra){
     P.forEach((_,i)=>view(i, Object.assign(base(), {me:i, isGm:i===gm, isHost:i===0},
       typeof extra==='function' ? extra(i) : extra)));
+    setTimeout(autoStep, 600);             // 離脱者の番なら代わりに進める
   }
 
   /* --- ロビー --- */
@@ -509,7 +516,7 @@ function startHost(samples, cukeMode, myname, fixedCode, tries){
     phase='submit'; pushSubmit();
   }
   function pushSubmit(){
-    const done = P.map((_,i)=> i===gm || guesses[i]!==null);
+    const done = P.map((_,i)=> i===gm || guesses[i]!==null || P[i].gone);
     const allIn = done.every(Boolean);
     push(i => ({kind:'submit', done, allIn, myGuess:guesses[i]}));
   }
@@ -520,7 +527,7 @@ function startHost(samples, cukeMode, myname, fixedCode, tries){
   }
   function onSeno(i){
     if(phase!=='submit' || i!==gm) return;
-    if(!P.every((_,k)=> k===gm || guesses[k]!==null)) return;
+    if(!P.every((_,k)=> k===gm || guesses[k]!==null || P[k].gone)) return;
     phase='reveal';
     let hits = 0;
     P.forEach((p,k)=>{ if(k!==gm && guesses[k]===answer){ hits++; if(cukeMode) p.cukes += 1; } });
@@ -542,6 +549,29 @@ function startHost(samples, cukeMode, myname, fixedCode, tries){
     push({kind:'final'});
   }
 
+  /* --- 途中離脱は続行（じゃんと同じ：その人のぶんは待たない） ---
+     GMが離脱：サンプルは無作為・カードは「キョーカン（ノーヒント）」・質問は「どちらでもない」で進める
+     研究員が離脱：質問も推理も待たない（推理なし＝的中なし） */
+  function autoStep(){
+    const g=P[gm];
+    if(phase==='gmpick' && g.gone) return onSecret(gm, Math.floor(Math.random()*samples.length));
+    if(phase==='flavor' && g.gone) return onFlavor(gm, {kyokan:true});
+    if(phase==='ask'){
+      const t=board[board.length-1];
+      const canAsk=P.some((p,i)=> i!==gm && !p.gone && !askedThisTurn[i]);
+      if(!canAsk && t.qs.length<qsMax()) return toAnswer();   // もう質問できる人がいない
+      return;
+    }
+    if(phase==='answer' && g.gone) return onAnswer(gm, 2);
+    if(phase==='discuss' && g.gone) return onCollect(gm);
+    if(phase==='submit' && g.gone) return onSeno(gm);          // 全員出そろっていなければ onSeno 側で何もしない
+  }
+  function onLeave(i){
+    const p=P[i]; if(!p||p.gone) return;
+    p.gone=true;
+    if(phase==='submit') pushSubmit(); else autoStep();
+  }
+
   function act(i,a){
     switch(a.kind){
       case 'secret':    onSecret(i,a.s); break;
@@ -560,7 +590,7 @@ function startHost(samples, cukeMode, myname, fixedCode, tries){
   window.__hostAct = act;                 // 検証用
   window.__P = P;
   window.__state = () => ({phase, round, gm, turn, answer, guesses:guesses.slice(),
-    qs:board.map(t=>t.qs.length)});
+    qs:board.map(t=>t.qs.length), asked:askedThisTurn.slice(), used:usedFactors.slice(), gone:P.map(p=>!!p.gone)});
 
   peer.on('open', lobby);
   peer.on('error', e=>{
@@ -573,35 +603,72 @@ function startHost(samples, cukeMode, myname, fixedCode, tries){
     <button id="b">もどる</button>`; $('#b').onclick = home; });
   peer.on('connection', conn=>{
     conn.on('data', msg=>{
+      const me = P.find(p=>p.conn===conn);
+      if(me){
+        if(me.gone){ try{ conn.send({t:'bye'}); }catch(_){} return; }   // 離脱扱い後は復帰させない → 本人に「切断されました」
+        me.seen = Date.now();
+      }
+      if(msg.t==='hb') return;
       if(msg.t==='join' && phase==='lobby'){
-        P.push({name:msg.name||'ゲスト', conn, cukes:0});
+        P.push({name:msg.name||'ゲスト', conn, cukes:0, seen:Date.now()});
         refreshLobby();
+      } else if(msg.t==='join'){
+        conn.close();                           // 途中からは入れない → 相手には「切断されました」
       } else if(msg.t==='action'){
         const i = P.findIndex(p=>p.conn===conn);
         if(i>0) act(i, msg.a);
       }
     });
+    conn.on('close', ()=>{ const i=P.findIndex(p=>p.conn===conn); if(i>0) onLeave(i); });
   });
+  const hb=setInterval(()=>{
+    if(peer.destroyed){ clearInterval(hb); return; }
+    const now=Date.now();
+    P.forEach((p,i)=>{
+      if(i===0||p.gone||!p.conn) return;
+      if(now-(p.seen||now)>HB_LOST_MS){ onLeave(i); try{ p.conn.send({t:'bye'}); }catch(_){} return; }
+      try{ if(p.conn.open) p.conn.send({t:'hb'}); }catch(_){}
+    });
+  }, HB_MS);
 }
 
 /* ========== ゲスト ========== */
 function startGuest(code, myname, retry){
+  cutOff = false;
   app.innerHTML = `<p class="center note" style="padding-top:70px">接続中…</p>`;
   const peer = new Peer();
   window.__peer = peer;
   peer.on('open', ()=>{
     const conn = peer.connect(PREFIX + code, {reliable:true});
     sendAction = a => conn.send({t:'action', a});
-    conn.on('open', ()=>conn.send({t:'join', name:myname}));
+    let seen=0, hb=null;
+    const lost=()=>{
+      clearInterval(hb); cutOff=true;
+      app.innerHTML = `<h1>切断されました</h1><button id="b">もどる</button>`;
+      $('#b').onclick = home;
+    };
+    conn.on('open', ()=>{
+      conn.send({t:'join', name:myname});
+      seen=Date.now();
+      hb=setInterval(()=>{
+        if(window.__peer!==peer){ clearInterval(hb); return; }        // 自分で「タイトルへ」等で抜けた
+        // 通信が既に切れている（画面オフから戻った等）か、ホストからの合図が途絶えた → 切断
+        if(peer.destroyed || !conn.open || Date.now()-seen>HB_LOST_MS){ try{ peer.destroy(); }catch(_){} return lost(); }
+        try{ conn.send({t:'hb'}); }catch(_){ try{ peer.destroy(); }catch(_){} return lost(); }
+      }, HB_MS);
+    });
     conn.on('data', msg=>{
+      if(cutOff) return;                         // 切断表示の後に届いたもの（止まっている間に溜まった画面など）は捨てる
+      seen=Date.now();
+      if(msg.t==='hb') return;
+      if(msg.t==='bye'){ try{ peer.destroy(); }catch(_){} return lost(); }
       if(msg.t==='lobby'){
         app.innerHTML = `<h1>部屋 ${esc(code)}</h1>
           <p class="waitlist center">${msg.names.map(n=>`✓ ${esc(n)}`).join('<br>')}</p>
           <p class="note center">ホストの「はじめる」を待っています…</p>`;
       } else if(msg.t==='view'){ render(msg.v); }
     });
-    conn.on('close', ()=>{ app.innerHTML = `<h1>切断されました</h1><button id="b">もどる</button>`;
-      $('#b').onclick = home; });
+    conn.on('close', lost);
   });
   peer.on('error', e=>{
     if(retry && e.type==='peer-unavailable' && retry > 0){   // テスト台：ホストの起動待ち
