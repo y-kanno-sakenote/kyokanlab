@@ -1145,9 +1145,10 @@ function startGuest(code, myname, retry){
       conn.send({t:'join', name:myname});
       seen=Date.now();
       hb=setInterval(()=>{
-        if(peer.destroyed){ clearInterval(hb); return; }
-        if(Date.now()-seen>HB_LOST_MS){ try{ peer.destroy(); }catch(_){} return lost(); }
-        try{ conn.send({t:'hb'}); }catch(_){}
+        if(window.__peer!==peer){ clearInterval(hb); return; }        // 自分で「タイトルへ」等で抜けた
+        // 通信が既に切れている（画面オフから戻った等）か、ホストからの合図が途絶えた → 切断
+        if(peer.destroyed || !conn.open || Date.now()-seen>HB_LOST_MS){ try{ peer.destroy(); }catch(_){} return lost(); }
+        try{ conn.send({t:'hb'}); }catch(_){ try{ peer.destroy(); }catch(_){} return lost(); }
       }, HB_MS);
     });
     conn.on('data', msg=>{
