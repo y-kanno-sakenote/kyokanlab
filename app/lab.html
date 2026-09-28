@@ -605,7 +605,7 @@ function startHost(samples, cukeMode, myname, fixedCode, tries){
       try{ peer.destroy(); }catch(_){}
       return startHost(samples, cukeMode, myname, null, (tries||0)+1);
     }
-    if(opened) return;                      // 部屋を開いた後の一時的なエラー（network 等）では卓の画面を消さない
+    if(opened && phase!=='lobby') return;   // ゲームが始まった後の一時的なエラー（network 等）では卓の画面を消さない。ロビーでは出す（部屋を作り直せるように）
     app.innerHTML = `<h1>接続エラー</h1><p class="note">${esc(e.type)}</p>
     <button id="b">もどる</button>`; $('#b').onclick = home; });
   peer.on('connection', conn=>{
