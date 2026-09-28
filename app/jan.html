@@ -817,6 +817,7 @@ function startHost(sample, myname, fixedCode, tries){
     phase='base'; deck=buildDeck(); winner=null; lastDiscard=null; discardPile=[]; finalLapLeft=0;
     P.forEach(p=>{ p.hand=deck.splice(0,HAND); p.base=null; p.baseWord=null; p.locked=[]; p.vote=null; });
     P.forEach((p,i)=>view(i,{kind:'basePick', bar:bar(), hand:p.hand}));
+    P.forEach((p,i)=>{ if(p.gone) autoBase(i); });
   }
   function onBase(i, card, word){
     const p=P[i];
@@ -855,6 +856,7 @@ function startHost(sample, myname, fixedCode, tries){
                sets:allSets(p), canWin:isWin(p), players:pubPlayers(), discards:discardPile,
                locked:p.locked, drew, drewIdx:p.hand.length-1});
     pushViews();
+    if(p.gone) autoDiscard(turn);
   }
   function onDiscard(i, idx){
     if(phase!=='play'||i!==turn) return;
@@ -867,6 +869,7 @@ function startHost(sample, myname, fixedCode, tries){
     kyokanQueue=[];
     for(let k=1;k<P.length;k++){
       const q=(i+k)%P.length;
+      if(P[q].gone) continue;                   // 離脱者は宣言できない
       const before=nSets(P[q].hand,P[q].base);
       const after=nSets(P[q].hand.concat([card]),P[q].base);
       if(after>before) kyokanQueue.push(q);
@@ -955,6 +958,7 @@ function startHost(sample, myname, fixedCode, tries){
     view(i,{kind:'turn', bar:bar(), base:q.base, baseWord:q.baseWord, cukes:q.cukes, hand:q.hand, drewFrom:'kyokan',
             sets:allSets(q), canWin:false, players:pubPlayers(), discards:discardPile, locked:q.locked, notice});
     pushViews();
+    if(q.gone) autoDiscard(i);
   }
   function onPass(i){
     if(phase!=='kyokan'||!kyokanQueue.includes(i)||kyokanResp[i]) return;
@@ -1021,7 +1025,7 @@ function startHost(sample, myname, fixedCode, tries){
     if(phase!=='reveal'||P[i].vote!=null) return;
     P[i].vote=to;
     view(i,{kind:'reveal', bar:bar(), board:hostBoard, canVote:false, me:i});
-    if(P.every(p=>p.vote!=null)) tally(hostBoard);
+    if(P.every(p=>p.vote!=null||p.gone)) tally(hostBoard);
   }
   function tally(board){
     phase='score';
@@ -1040,6 +1044,23 @@ function startHost(sample, myname, fixedCode, tries){
   }
   function finish(){
     P.forEach((p,i)=>view(i,{kind:'message', text:'おつかれさまでした', sub:'また味わったら遊ぼう'}));
+  }
+
+  /* --- 途中離脱は続行（せーのと同じ：その人のぶんは待たない） --- */
+  function autoBase(i){                         // 離脱者は手札の先頭をベース扱い
+    const c=P[i].hand.find(c=>c!==JOKER&&!isGreen(c));
+    if(c!=null) onBase(i, c, 0);
+  }
+  function autoDiscard(i){                      // 離脱者の手番はツモ切り
+    setTimeout(()=>{ if(phase==='play'&&turn===i&&P[i].pendingTurn) onDiscard(i, P[i].hand.length-1); }, 600);
+  }
+  function onLeave(i){
+    const p=P[i]; if(!p||p.gone) return;
+    p.gone=true;
+    if(phase==='base'&&p.base==null) autoBase(i);
+    else if(phase==='play'&&i===turn&&p.pendingTurn) autoDiscard(i);
+    else if(phase==='kyokan'&&kyokanQueue.includes(i)&&!kyokanResp[i]) onPass(i);
+    else if(phase==='reveal'&&p.vote==null&&P.every(q=>q.vote!=null||q.gone)) tally(hostBoard);
   }
 
   /* --- アクション受付 --- */
@@ -1078,10 +1099,13 @@ function startHost(sample, myname, fixedCode, tries){
         conns.push(conn); P.push({name:msg.name||'ゲスト', conn, hand:[], color:null, locked:[],
                                   words:null, cukes:0, vote:null});
         refreshLobby();
+      } else if(msg.t==='join'){
+        conn.close();                           // 途中からは入れない（せーのと同じ）→ 相手には「切断されました」
       } else if(msg.t==='action'){
         const i=P.findIndex(p=>p.conn===conn); if(i>0) act(i,msg.a);
       }
     });
+    conn.on('close',()=>{ const i=P.findIndex(p=>p.conn===conn); if(i>0) onLeave(i); });
   });
 }
 
